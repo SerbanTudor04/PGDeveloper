@@ -6,26 +6,25 @@ public class ConnectionProfile {
     private int port;
     private String database;
     private String username;
+    private String password; // <--- NEW FIELD
     private boolean useSsl;
 
-    // We intentionally don't save passwords for security in this simple version
-    // You can add it, but it's better to ask for it every time or use a keyring later.
-
-    public ConnectionProfile(String name, String host, int port, String database, String username, boolean useSsl) {
+    public ConnectionProfile(String name, String host, int port, String database, String username, String password, boolean useSsl) {
         this.name = name;
         this.host = host;
         this.port = port;
         this.database = database;
         this.username = username;
+        this.password = password; // <--- Save it
         this.useSsl = useSsl;
     }
 
-    // Getters
     public String getName() { return name; }
     public String getHost() { return host; }
     public int getPort() { return port; }
     public String getDatabase() { return database; }
     public String getUsername() { return username; }
+    public String getPassword() { return password; } // <--- Getter
     public boolean isUseSsl() { return useSsl; }
 
     @Override

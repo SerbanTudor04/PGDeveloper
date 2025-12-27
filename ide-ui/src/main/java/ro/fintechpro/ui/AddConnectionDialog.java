@@ -27,7 +27,6 @@ public class AddConnectionDialog {
     }
 
     public void show() {
-        // 1. Create Form Fields
         TextField nameField = new TextField();
         nameField.setPromptText("e.g. Production DB");
 
@@ -36,32 +35,30 @@ public class AddConnectionDialog {
         TextField dbField = new TextField("postgres");
         TextField userField = new TextField("postgres");
 
-        CheckBox sslBox = new CheckBox("Use SSL");
-        sslBox.setSelected(false);
+        // NEW PASSWORD FIELD
+        PasswordField passField = new PasswordField();
+        passField.setPromptText("Optional (Saved insecurely)");
 
-        // 2. Create Save Button
+        CheckBox sslBox = new CheckBox("Use SSL");
+
         Button saveBtn = new Button("Save Profile");
-        saveBtn.setDefaultButton(true); // Allows pressing 'Enter' key to save
+        saveBtn.setDefaultButton(true);
         saveBtn.setOnAction(e -> {
             if (validate(nameField, hostField, userField)) {
 
-                // Create the profile object
+                // Update constructor call to include password
                 ConnectionProfile profile = new ConnectionProfile(
                         nameField.getText(),
                         hostField.getText(),
                         Integer.parseInt(portField.getText()),
                         dbField.getText(),
                         userField.getText(),
+                        passField.getText(), // <--- Pass the password
                         sslBox.isSelected()
                 );
 
-                // Save to JSON file
                 configService.saveConnection(profile);
-
-                // Add to the UI list immediately
                 parentList.getItems().add(profile);
-
-                // Close the dialog
                 stage.close();
             }
         });
@@ -69,25 +66,27 @@ public class AddConnectionDialog {
         Button cancelBtn = new Button("Cancel");
         cancelBtn.setOnAction(e -> stage.close());
 
-        // 3. Layout (Using GridPane for aligned labels and inputs)
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
         grid.setPadding(new Insets(20));
 
-        // Add components to the grid (Column, Row)
         grid.add(new Label("Profile Name:"), 0, 0); grid.add(nameField, 1, 0);
         grid.add(new Label("Host IP:"), 0, 1);      grid.add(hostField, 1, 1);
         grid.add(new Label("Port:"), 0, 2);         grid.add(portField, 1, 2);
         grid.add(new Label("Database:"), 0, 3);     grid.add(dbField, 1, 3);
         grid.add(new Label("Username:"), 0, 4);     grid.add(userField, 1, 4);
-        grid.add(new Label("Security:"), 0, 5);     grid.add(sslBox, 1, 5);
+
+        // Add Password to the Grid
+        grid.add(new Label("Password:"), 0, 5);     grid.add(passField, 1, 5);
+
+        grid.add(new Label("Security:"), 0, 6);     grid.add(sslBox, 1, 6);
 
         HBox buttons = new HBox(10, saveBtn, cancelBtn);
         buttons.setAlignment(Pos.CENTER_RIGHT);
-        grid.add(buttons, 1, 6);
+        grid.add(buttons, 1, 7); // <--- Moved down one row
 
-        Scene scene = new Scene(grid, 400, 350);
+        Scene scene = new Scene(grid, 400, 400); // <--- Increased height slightly
         stage.setScene(scene);
         stage.show();
     }
