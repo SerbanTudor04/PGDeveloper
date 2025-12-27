@@ -24,6 +24,7 @@ import ro.fintechpro.ui.plugins.TablePlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class MainIdeView {
 
@@ -37,75 +38,115 @@ public class MainIdeView {
     // UI Components
     private final List<SidebarPlugin> plugins = List.of(new TablePlugin(), new FunctionPlugin());
     private final SidebarView sidebar = new SidebarView(plugins);
-
-    // REPLACED: Single CodeArea -> TabPane for multiple consoles
     private TabPane editorTabPane;
-
     private final TableView<List<Object>> resultsTable = new TableView<>();
     private final TextArea messageConsole = new TextArea();
     private final ProgressBar progressBar = new ProgressBar();
     private final Label statusLabel = new Label("Ready");
-
-    // Docking System
     private DockLayout dockLayout;
 
+    // State to track if we preloaded data during splash screen
+    private boolean isPreloaded = false;
+
+    /**
+     * BLOCKING method called by the Splash Screen background thread.
+     * It performs all DB queries and Indexing before the UI is shown.
+     */
+    public void preload(Consumer<String> statusUpdater) {
+        try {
+            statusUpdater.accept("Connecting to database...");
+            // Ensure connection is valid (optional, already connected in manager)
+            if (!dbManager.testConnection()) throw new RuntimeException("Connection lost");
+
+            // 1. Introspection & Indexing
+            statusUpdater.accept("Indexing database structure...");
+            indexService.clearIndex();
+
+            List<LocalIndexService.SearchResult> batch = new ArrayList<>();
+            List<String> schemas = metaService.getSchemas();
+
+            int count = 0;
+            for (String schema : schemas) {
+                statusUpdater.accept("Indexing schema: " + schema);
+                for (SidebarPlugin p : plugins) {
+                    batch.addAll(p.getIndexItems(schema, metaService));
+                }
+                count++;
+            }
+
+            statusUpdater.accept("Finalizing index (" + batch.size() + " objects)...");
+            indexService.indexItems(batch);
+
+            // 2. Load Workspace (Tabs)
+            statusUpdater.accept("Restoring workspace...");
+            // We just ensure the service is ready; actual UI tabs must be created on FX thread
+            workspaceService.loadState();
+
+            isPreloaded = true;
+            statusUpdater.accept("Ready!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            statusUpdater.accept("Error: " + e.getMessage());
+        }
+    }
+
     public Parent getView() {
-        // 1. SETUP EDITOR AREA (Consoles)
+        // 1. SETUP EDITOR AREA
         editorTabPane = new TabPane();
         editorTabPane.getStyleClass().add(Styles.DENSE);
 
-        // LOAD SAVED CONSOLES
         List<WorkspaceService.ConsoleState> savedStates = workspaceService.loadState();
         if (savedStates.isEmpty()) {
-            addNewConsole(); // Default if empty
+            addNewConsole();
         } else {
-            for (var state : savedStates) {
-                addConsoleTab(state);
-            }
+            for (var state : savedStates) addConsoleTab(state);
         }
-
-        // AUTO-SAVE Setup
         setupAutoSave();
 
-        // 2. INITIALIZE DOCKING SYSTEM
-        // We pass the editorTabPane as the central component
+        // 2. DOCKING SYSTEM
         dockLayout = new DockLayout(editorTabPane);
-
-        // Load CSS if you created it
         if (getClass().getResource("/dock-layout.css") != null) {
             dockLayout.getStylesheets().add(getClass().getResource("/dock-layout.css").toExternalForm());
         }
 
-        // 3. DOCK COMPONENTS
         dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT);
         dockLayout.dock(resultsTable, "Query Results", DockLayout.Location.BOTTOM);
         dockLayout.dock(messageConsole, "Console", DockLayout.Location.BOTTOM);
 
-        // 4. SETUP MENU BAR
+        // 3. MENU & ROOT
         MenuBar menuBar = createMenuBar();
-
-        // 5. ROOT LAYOUT
         BorderPane root = new BorderPane();
         root.setTop(menuBar);
         root.setCenter(dockLayout);
         root.setBottom(createStatusBar());
 
-        // Wire Logic
         sidebar.setOnRefresh(this::runIntrospection);
-        runIntrospection(null);
+
+        // 4. INITIAL POPULATION
+        if (isPreloaded) {
+            // Data is already in memory/H2, just render the sidebar
+            // We must wrap this in runLater to ensure it happens after the scene is attached
+            Platform.runLater(() -> {
+                sidebar.populate(metaService);
+                sidebar.setupSearch(indexService);
+                statusLabel.setText("Ready (Preloaded).");
+            });
+        } else {
+            // Fallback if skipped splash screen
+            runIntrospection(null);
+        }
 
         return root;
     }
 
     // --- CONSOLE MANAGEMENT ---
-
     private void addNewConsole() {
         var state = workspaceService.createNewConsole("postgres");
         addConsoleTab(state);
     }
 
     private void addConsoleTab(WorkspaceService.ConsoleState state) {
-        // We pass 'this::executeQuery' as the callback so the tab can run queries
         SqlConsoleTab tab = new SqlConsoleTab(state, this::executeQuery);
         editorTabPane.getTabs().add(tab);
         editorTabPane.getSelectionModel().select(tab);
@@ -116,7 +157,6 @@ public class MainIdeView {
         for (Tab t : editorTabPane.getTabs()) {
             if (t instanceof SqlConsoleTab sqlTab) {
                 states.add(sqlTab.toState());
-                // --- FIX IS HERE: use getSqlContent() ---
                 workspaceService.saveConsoleContent(sqlTab.getConsoleId(), sqlTab.getSqlContent());
             }
         }
@@ -125,10 +165,7 @@ public class MainIdeView {
     }
 
     private void setupAutoSave() {
-        // Save on shutdown
         Runtime.getRuntime().addShutdownHook(new Thread(this::saveWorkspace));
-
-        // Save every 30 seconds
         Thread saveThread = new Thread(() -> {
             while(true) {
                 try {
@@ -142,11 +179,8 @@ public class MainIdeView {
     }
 
     // --- UI HELPERS ---
-
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
-
-        // File Menu
         Menu fileMenu = new Menu("File");
         MenuItem newConsole = new MenuItem("New Console", new FontIcon(Feather.PLUS));
         newConsole.setOnAction(e -> addNewConsole());
@@ -154,7 +188,6 @@ public class MainIdeView {
         saveItem.setOnAction(e -> saveWorkspace());
         fileMenu.getItems().addAll(newConsole, saveItem);
 
-        // View Menu
         Menu viewMenu = new Menu("View");
         MenuItem openExplorer = new MenuItem("Database Explorer");
         openExplorer.setOnAction(e -> dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT));
@@ -175,12 +208,9 @@ public class MainIdeView {
         return bar;
     }
 
-    // --- LOGIC (Execution) ---
-
-    // Note: This method now accepts SQL string directly (passed from the active Tab)
+    // --- LOGIC (Execution & Refresh) ---
     private void executeQuery(String sql) {
         if (sql == null || sql.trim().isEmpty()) return;
-
         statusLabel.setText("Executing...");
         progressBar.setVisible(true);
 
@@ -188,16 +218,13 @@ public class MainIdeView {
             try {
                 var result = queryExecutor.execute(sql);
                 Platform.runLater(() -> {
-                    // Show results dock
                     dockLayout.dock(result.isResultSet() ? resultsTable : messageConsole,
                             result.isResultSet() ? "Query Results" : "Console",
                             DockLayout.Location.BOTTOM);
 
-                    if (result.isResultSet()) {
-                        ResultTableBuilder.populate(resultsTable, result);
-                    } else {
-                        messageConsole.setText(result.message());
-                    }
+                    if (result.isResultSet()) ResultTableBuilder.populate(resultsTable, result);
+                    else messageConsole.setText(result.message());
+
                     statusLabel.setText("Done.");
                     progressBar.setVisible(false);
                 });
@@ -212,6 +239,7 @@ public class MainIdeView {
         }).start();
     }
 
+    // This handles manual refresh button clicks
     private void runIntrospection(Runnable onComplete) {
         if (onComplete == null) {
             progressBar.setVisible(true);
