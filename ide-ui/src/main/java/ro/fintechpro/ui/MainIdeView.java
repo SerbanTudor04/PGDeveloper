@@ -7,6 +7,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.stage.Stage;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.db.DataSourceManager;
@@ -15,6 +16,7 @@ import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
 import ro.fintechpro.core.service.WorkspaceService;
 import ro.fintechpro.core.spi.SidebarPlugin;
+import ro.fintechpro.ui.components.CustomTitleBar;
 import ro.fintechpro.ui.ide.DockLayout;
 import ro.fintechpro.ui.ide.ResultTableBuilder;
 import ro.fintechpro.ui.ide.SidebarView;
@@ -91,7 +93,7 @@ public class MainIdeView {
         }
     }
 
-    public Parent getView() {
+    public Parent getView(Stage stage) {
         // 1. SETUP EDITOR AREA
         editorTabPane = new TabPane();
         editorTabPane.getStyleClass().add(Styles.DENSE);
@@ -103,6 +105,10 @@ public class MainIdeView {
             for (var state : savedStates) addConsoleTab(state);
         }
         setupAutoSave();
+
+        CustomTitleBar titleBar =
+                new CustomTitleBar(stage, "PgDeveloper - " + dbManager.getConnectionInfoOrName());
+
 
         // 2. DOCKING SYSTEM
         dockLayout = new DockLayout(editorTabPane);

@@ -11,6 +11,7 @@ import atlantafx.base.theme.NordDark;
 import ro.fintechpro.ui.ConnectionManagerView;
 import ro.fintechpro.ui.LoadingView;
 import ro.fintechpro.ui.MainIdeView;
+import ro.fintechpro.ui.util.ResizeHelper;
 
 public class IdeApp extends Application {
 
@@ -64,12 +65,28 @@ public class IdeApp extends Application {
         // 3. When done, show the UI
         initTask.setOnSucceeded(e -> {
             loadingView.updateMessage("Building User Interface...");
-            MainIdeView readyIde = initTask.getValue(); // Get the preloaded instance
+            MainIdeView readyIde = initTask.getValue();
 
             Platform.runLater(() -> {
-                primaryStage.setScene(new Scene(readyIde.getView(), 1200, 800));
-                primaryStage.centerOnScreen();
-                primaryStage.setMaximized(true);
+                // 1. Create a NEW Stage
+                Stage mainStage = new Stage();
+                mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+
+                // 2. Create the Scene
+                Scene scene = new Scene(readyIde.getView(mainStage), 1200, 800);
+
+                // 3. SET THE SCENE FIRST <--- This must happen before ResizeHelper
+                mainStage.setScene(scene);
+
+                // 4. NOW Add the resize helper
+                ResizeHelper.addResizeListener(mainStage);
+
+                // 5. Show
+                mainStage.centerOnScreen();
+                mainStage.show();
+
+                // Close the loading stage
+                primaryStage.close();
             });
         });
 
