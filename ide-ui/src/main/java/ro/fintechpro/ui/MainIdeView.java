@@ -94,6 +94,7 @@ public class MainIdeView {
     }
 
     public Parent getView(Stage stage) {
+
         // 1. SETUP EDITOR AREA
         editorTabPane = new TabPane();
         editorTabPane.getStyleClass().add(Styles.DENSE);
@@ -122,8 +123,16 @@ public class MainIdeView {
 
         // 3. MENU & ROOT
         MenuBar menuBar = createMenuBar();
+
+        menuBar.setUseSystemMenuBar(false);
+        // COMBINE TitleBar and MenuBar
+        VBox topContainer = new VBox(titleBar, menuBar);
+
         BorderPane root = new BorderPane();
-        root.setTop(menuBar);
+        if (getClass().getResource("/app-main.css") != null) {
+            root.getStylesheets().add(getClass().getResource("/app-main.css").toExternalForm());
+        }
+        root.setTop(topContainer);
         root.setCenter(dockLayout);
         root.setBottom(createStatusBar());
 
