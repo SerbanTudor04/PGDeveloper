@@ -7,19 +7,18 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import org.fxmisc.flowless.VirtualizedScrollPane;
-import org.fxmisc.richtext.CodeArea;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
+import ro.fintechpro.core.service.WorkspaceService;
 import ro.fintechpro.core.spi.SidebarPlugin;
 import ro.fintechpro.ui.ide.DockLayout;
 import ro.fintechpro.ui.ide.ResultTableBuilder;
 import ro.fintechpro.ui.ide.SidebarView;
-import ro.fintechpro.ui.ide.SqlSyntaxHighlighter;
+import ro.fintechpro.ui.ide.SqlConsoleTab;
 import ro.fintechpro.ui.plugins.FunctionPlugin;
 import ro.fintechpro.ui.plugins.TablePlugin;
 
@@ -33,40 +32,56 @@ public class MainIdeView {
     private final MetadataService metaService = new MetadataService(dbManager);
     private final QueryExecutor queryExecutor = new QueryExecutor();
     private final LocalIndexService indexService = new LocalIndexService();
+    private final WorkspaceService workspaceService = new WorkspaceService();
 
     // UI Components
     private final List<SidebarPlugin> plugins = List.of(new TablePlugin(), new FunctionPlugin());
     private final SidebarView sidebar = new SidebarView(plugins);
 
-    private final CodeArea sqlEditor = new CodeArea();
+    // REPLACED: Single CodeArea -> TabPane for multiple consoles
+    private TabPane editorTabPane;
+
     private final TableView<List<Object>> resultsTable = new TableView<>();
     private final TextArea messageConsole = new TextArea();
     private final ProgressBar progressBar = new ProgressBar();
     private final Label statusLabel = new Label("Ready");
 
-    // NEW: Docking System
+    // Docking System
     private DockLayout dockLayout;
 
     public Parent getView() {
-        // 1. SETUP EDITOR (Center Component)
-        // We wrap the editor in a VBox with the Header, so the header stays attached to the code
-        VBox editorWrapper = createEditorArea();
+        // 1. SETUP EDITOR AREA (Consoles)
+        editorTabPane = new TabPane();
+        editorTabPane.getStyleClass().add(Styles.DENSE);
+
+        // LOAD SAVED CONSOLES
+        List<WorkspaceService.ConsoleState> savedStates = workspaceService.loadState();
+        if (savedStates.isEmpty()) {
+            addNewConsole(); // Default if empty
+        } else {
+            for (var state : savedStates) {
+                addConsoleTab(state);
+            }
+        }
+
+        // AUTO-SAVE Setup
+        setupAutoSave();
 
         // 2. INITIALIZE DOCKING SYSTEM
-        dockLayout = new DockLayout(editorWrapper);
+        // We pass the editorTabPane as the central component
+        dockLayout = new DockLayout(editorTabPane);
 
-        dockLayout.getStylesheets().add(getClass().getResource("/dock-layout.css").toExternalForm());
+        // Load CSS if you created it
+        if (getClass().getResource("/dock-layout.css") != null) {
+            dockLayout.getStylesheets().add(getClass().getResource("/dock-layout.css").toExternalForm());
+        }
 
         // 3. DOCK COMPONENTS
-        // Sidebar -> Left
         dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT);
-
-
-        // Results & Messages -> Bottom (Stacked)
         dockLayout.dock(resultsTable, "Query Results", DockLayout.Location.BOTTOM);
         dockLayout.dock(messageConsole, "Console", DockLayout.Location.BOTTOM);
 
-        // 4. SETUP MENU BAR (To re-open closed views)
+        // 4. SETUP MENU BAR
         MenuBar menuBar = createMenuBar();
 
         // 5. ROOT LAYOUT
@@ -82,40 +97,72 @@ public class MainIdeView {
         return root;
     }
 
-    private VBox createEditorArea() {
-        // --- Header (Run Button, Limit, etc.) ---
-        Button runBtn = new Button("Run", new FontIcon(Feather.PLAY));
-        runBtn.getStyleClass().addAll(Styles.SUCCESS, Styles.SMALL);
-        runBtn.setOnAction(e -> executeQuery());
+    // --- CONSOLE MANAGEMENT ---
 
-        HBox header = new HBox(10, runBtn, new Separator(javafx.geometry.Orientation.VERTICAL), new Label("Limit: 500"));
-        header.setPadding(new Insets(5, 10, 5, 10));
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setStyle("-fx-border-color: -color-border-default; -fx-border-width: 0 0 1 0;");
-
-        // --- Code Editor ---
-        sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
-        SqlSyntaxHighlighter.enable(sqlEditor);
-        sqlEditor.getStyleClass().add("styled-text-area");
-        VirtualizedScrollPane<CodeArea> scroll = new VirtualizedScrollPane<>(sqlEditor);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        return new VBox(header, scroll);
+    private void addNewConsole() {
+        var state = workspaceService.createNewConsole("postgres");
+        addConsoleTab(state);
     }
+
+    private void addConsoleTab(WorkspaceService.ConsoleState state) {
+        // We pass 'this::executeQuery' as the callback so the tab can run queries
+        SqlConsoleTab tab = new SqlConsoleTab(state, this::executeQuery);
+        editorTabPane.getTabs().add(tab);
+        editorTabPane.getSelectionModel().select(tab);
+    }
+
+    private void saveWorkspace() {
+        List<WorkspaceService.ConsoleState> states = new ArrayList<>();
+        for (Tab t : editorTabPane.getTabs()) {
+            if (t instanceof SqlConsoleTab sqlTab) {
+                states.add(sqlTab.toState());
+                // --- FIX IS HERE: use getSqlContent() ---
+                workspaceService.saveConsoleContent(sqlTab.getConsoleId(), sqlTab.getSqlContent());
+            }
+        }
+        workspaceService.saveState(states);
+        Platform.runLater(() -> statusLabel.setText("Workspace saved."));
+    }
+
+    private void setupAutoSave() {
+        // Save on shutdown
+        Runtime.getRuntime().addShutdownHook(new Thread(this::saveWorkspace));
+
+        // Save every 30 seconds
+        Thread saveThread = new Thread(() -> {
+            while(true) {
+                try {
+                    Thread.sleep(30000);
+                    Platform.runLater(this::saveWorkspace);
+                } catch (InterruptedException e) { break; }
+            }
+        });
+        saveThread.setDaemon(true);
+        saveThread.start();
+    }
+
+    // --- UI HELPERS ---
 
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
-        Menu viewMenu = new Menu("View");
 
-        // Helper to add menu items that re-open windows
+        // File Menu
+        Menu fileMenu = new Menu("File");
+        MenuItem newConsole = new MenuItem("New Console", new FontIcon(Feather.PLUS));
+        newConsole.setOnAction(e -> addNewConsole());
+        MenuItem saveItem = new MenuItem("Save Workspace", new FontIcon(Feather.SAVE));
+        saveItem.setOnAction(e -> saveWorkspace());
+        fileMenu.getItems().addAll(newConsole, saveItem);
+
+        // View Menu
+        Menu viewMenu = new Menu("View");
         MenuItem openExplorer = new MenuItem("Database Explorer");
         openExplorer.setOnAction(e -> dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT));
-
         MenuItem openResults = new MenuItem("Query Results");
         openResults.setOnAction(e -> dockLayout.dock(resultsTable, "Query Results", DockLayout.Location.BOTTOM));
-
         viewMenu.getItems().addAll(openExplorer, openResults);
-        menuBar.getMenus().add(viewMenu);
+
+        menuBar.getMenus().addAll(fileMenu, viewMenu);
         return menuBar;
     }
 
@@ -128,23 +175,20 @@ public class MainIdeView {
         return bar;
     }
 
-    // --- LOGIC (Introspection & Execution) ---
-    // (This remains largely the same, just targeting the new UI structure)
+    // --- LOGIC (Execution) ---
 
-    private void executeQuery() {
-        String sql = sqlEditor.getSelectedText();
-        if (sql == null || sql.trim().isEmpty()) sql = sqlEditor.getText();
-        if (sql.trim().isEmpty()) return;
+    // Note: This method now accepts SQL string directly (passed from the active Tab)
+    private void executeQuery(String sql) {
+        if (sql == null || sql.trim().isEmpty()) return;
 
-        final String finalSql = sql;
         statusLabel.setText("Executing...");
         progressBar.setVisible(true);
 
         new Thread(() -> {
             try {
-                var result = queryExecutor.execute(finalSql);
+                var result = queryExecutor.execute(sql);
                 Platform.runLater(() -> {
-                    // Ensure the panels are visible/docked when we get results
+                    // Show results dock
                     dockLayout.dock(result.isResultSet() ? resultsTable : messageConsole,
                             result.isResultSet() ? "Query Results" : "Console",
                             DockLayout.Location.BOTTOM);
