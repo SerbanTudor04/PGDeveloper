@@ -55,9 +55,12 @@ public class MainIdeView {
         // 2. INITIALIZE DOCKING SYSTEM
         dockLayout = new DockLayout(editorWrapper);
 
+        dockLayout.getStylesheets().add(getClass().getResource("/dock-layout.css").toExternalForm());
+
         // 3. DOCK COMPONENTS
         // Sidebar -> Left
         dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT);
+
 
         // Results & Messages -> Bottom (Stacked)
         dockLayout.dock(resultsTable, "Query Results", DockLayout.Location.BOTTOM);

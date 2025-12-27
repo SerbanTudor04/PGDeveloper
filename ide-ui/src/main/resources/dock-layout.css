@@ -1,0 +1,9 @@
+.drop-target-active {
+    /* Use AtlantaFX variables so it adapts to Dark/Light theme automatically */
+    -fx-background-color: -color-accent-subtle;
+    -fx-border-color: -color-accent-emphasis;
+    -fx-border-width: 2px;
+    -fx-border-style: dashed; /* Dashed line implies "Drop Here" */
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
