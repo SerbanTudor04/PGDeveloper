@@ -12,6 +12,7 @@ import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.service.WorkspaceService;
 
+import java.util.Optional;
 import java.util.function.Consumer;
 
 public class SqlConsoleTab extends Tab {
@@ -27,6 +28,21 @@ public class SqlConsoleTab extends Tab {
         this.consoleId = state.id();
         this.executeAction = executeAction;
         this.setClosable(true);
+
+        // --- NEW: Context Menu for Renaming ---
+        ContextMenu contextMenu = new ContextMenu();
+
+        MenuItem renameItem = new MenuItem("Rename Console", new FontIcon(Feather.EDIT_2));
+        renameItem.setOnAction(e -> promptRename());
+
+        MenuItem closeItem = new MenuItem("Close", new FontIcon(Feather.X));
+        closeItem.setOnAction(e -> {
+            if (getTabPane() != null) getTabPane().getTabs().remove(this);
+        });
+
+        contextMenu.getItems().addAll(renameItem, new SeparatorMenuItem(), closeItem);
+        this.setContextMenu(contextMenu);
+        // --------------------------------------
 
         // 1. Editor Setup
         codeArea.replaceText(state.content());
@@ -59,6 +75,23 @@ public class SqlConsoleTab extends Tab {
         setContent(content);
     }
 
+    private void promptRename() {
+        TextInputDialog dialog = new TextInputDialog(getText());
+        dialog.setTitle("Rename Console");
+        dialog.setHeaderText("Enter a new name for this console:");
+        dialog.setContentText("Name:");
+
+        // Style the dialog slightly to match the app (optional)
+        dialog.getDialogPane().getStylesheets().add(getClass().getResource("/sql-keywords.css").toExternalForm());
+
+        Optional<String> result = dialog.showAndWait();
+        result.ifPresent(newName -> {
+            if (!newName.trim().isEmpty()) {
+                this.setText(newName);
+            }
+        });
+    }
+
     private void runQuery() {
         String sql = codeArea.getSelectedText();
         if (sql == null || sql.trim().isEmpty()) sql = codeArea.getText();
@@ -69,12 +102,12 @@ public class SqlConsoleTab extends Tab {
     }
 
     public WorkspaceService.ConsoleState toState() {
+        // The persistence logic uses getText(), so renaming here automatically saves the new name!
         return new WorkspaceService.ConsoleState(consoleId, getText(), connectionSelector.getValue(), codeArea.getText());
     }
 
     public String getConsoleId() { return consoleId; }
 
-    // --- RENAMED METHOD HERE ---
     public String getSqlContent() { return codeArea.getText(); }
 
     public String getConnectionName() { return connectionSelector.getValue(); }

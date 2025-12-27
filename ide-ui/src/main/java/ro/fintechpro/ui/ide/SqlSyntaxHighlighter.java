@@ -1,5 +1,6 @@
 package ro.fintechpro.ui.ide;
 
+import javafx.application.Platform;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
@@ -35,13 +36,24 @@ public class SqlSyntaxHighlighter {
     );
 
     public static void enable(CodeArea codeArea) {
-        // Re-compute highlighting when text changes
+        // 1. Listen for future changes
         codeArea.multiPlainChanges()
-                .successionEnds(Duration.ofMillis(100)) // Wait 100ms after typing stops
+                .successionEnds(Duration.ofMillis(100))
                 .subscribe(ignore -> codeArea.setStyleSpans(0, computeHighlighting(codeArea.getText())));
 
-        // Load CSS
+        // 2. Load CSS
         codeArea.getStylesheets().add(SqlSyntaxHighlighter.class.getResource("/sql-keywords.css").toExternalForm());
+
+        // 3. FIX: Apply highlighting immediately to existing text
+        Platform.runLater(() -> {
+            try {
+                if (!codeArea.getText().isEmpty()) {
+                    codeArea.setStyleSpans(0, computeHighlighting(codeArea.getText()));
+                }
+            } catch (Exception e) {
+                // Context might not be ready yet, safe to ignore for split second
+            }
+        });
     }
 
     private static StyleSpans<Collection<String>> computeHighlighting(String text) {
