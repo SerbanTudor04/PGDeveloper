@@ -20,4 +20,5 @@ dependencies {
     // Links the other modules so the launcher can see them
     implementation(project(":ide-ui"))
     implementation(project(":ide-core"))
+    implementation("io.github.mkpaz:atlantafx-base:2.0.1")
 }

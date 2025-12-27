@@ -1,5 +1,6 @@
 package ro.fintechpro.ui;
 
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -29,11 +30,11 @@ public class ConnectionManagerView {
         connectBtn.setOnAction(e -> {
             ConnectionProfile selected = list.getSelectionModel().getSelectedItem();
             if (selected != null) {
-                // If password exists, skip the prompt
                 if (selected.getPassword() != null && !selected.getPassword().isEmpty()) {
-                    connectDirectly(selected, stage);
+                    // Pass 'connectBtn' so we can disable it
+                    connectDirectly(selected, stage, connectBtn);
                 } else {
-                    askPasswordAndConnect(selected, stage);
+                    askPasswordAndConnect(selected, stage, connectBtn);
                 }
             } else {
                 showAlert("Selection Required", "Please select a connection.");
@@ -107,7 +108,7 @@ public class ConnectionManagerView {
         }
     }
 
-    private void askPasswordAndConnect(ConnectionProfile profile, Stage stage) {
+    private void askPasswordAndConnect(ConnectionProfile profile, Stage stage, Button sourceButton) {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Authentication");
         dialog.setHeaderText("Enter password for " + profile.getUsername());
@@ -115,24 +116,7 @@ public class ConnectionManagerView {
 
         Optional<String> result = dialog.showAndWait();
         result.ifPresent(password -> {
-            try {
-                dbManager.connect(
-                        profile.getHost(),
-                        profile.getPort(),
-                        profile.getDatabase(),
-                        profile.getUsername(),
-                        password,
-                        profile.isUseSsl()
-                );
-
-                if (dbManager.testConnection()) {
-                    switchToIde(stage);
-                } else {
-                    showAlert("Connection Failed", "Authentication failed.");
-                }
-            } catch (Exception ex) {
-                showAlert("Error", ex.getMessage());
-            }
+            connectAsync(profile, password, sourceButton, stage);
         });
     }
 
@@ -148,5 +132,53 @@ public class ConnectionManagerView {
         alert.setTitle(title);
         alert.setContentText(content);
         alert.show();
+    }
+
+    private void connectAsync(ConnectionProfile profile, String password, Button sourceButton, Stage stage) {
+        // 1. UI State: Loading
+        String originalText = sourceButton.getText();
+        sourceButton.setDisable(true);
+        sourceButton.setText("Connecting...");
+
+        // 2. Run in Background Thread
+        new Thread(() -> {
+            try {
+                // HEAVY LIFTING HERE
+                dbManager.connect(
+                        profile.getHost(),
+                        profile.getPort(),
+                        profile.getDatabase(),
+                        profile.getUsername(),
+                        password,
+                        profile.isUseSsl()
+                );
+
+                boolean success = dbManager.testConnection();
+
+                // 3. Update UI (Must be on JavaFX Thread)
+                Platform.runLater(() -> {
+                    sourceButton.setDisable(false);
+                    sourceButton.setText(originalText);
+
+                    if (success) {
+                        switchToIde(stage);
+                    } else {
+                        showAlert("Connection Failed", "Could not verify connection.");
+                    }
+                });
+
+            } catch (Exception ex) {
+                // Handle Errors on UI Thread
+                Platform.runLater(() -> {
+                    sourceButton.setDisable(false);
+                    sourceButton.setText(originalText);
+                    showAlert("Error", ex.getMessage());
+                    ex.printStackTrace();
+                });
+            }
+        }).start();
+    }
+    private void connectDirectly(ConnectionProfile profile, Stage stage, Button sourceButton) {
+        connectAsync(profile, profile.getPassword(), sourceButton, stage);
     }
 }

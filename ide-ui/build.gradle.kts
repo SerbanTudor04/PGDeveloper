@@ -13,6 +13,7 @@ dependencies {
 
     // Advanced Text Editor (We will use this for the SQL Editor later)
     implementation("org.fxmisc.richtext:richtextfx:0.11.2")
+    implementation("io.github.mkpaz:atlantafx-base:2.0.1")
 }
 
 tasks.test {
