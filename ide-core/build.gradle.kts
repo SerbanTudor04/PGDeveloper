@@ -1,5 +1,7 @@
 plugins {
     id("java")
+    id("org.openjfx.javafxplugin")
+
 }
 
 group = "ro.fintechpro"
@@ -9,6 +11,10 @@ repositories {
     mavenCentral()
 }
 
+javafx {
+    version = "23" // <--- Must match your JDK and Launcher version
+    modules("javafx.controls", "javafx.fxml", "javafx.graphics")
+}
 dependencies {
     // The Database Driver
     implementation("org.postgresql:postgresql:42.7.2")
