@@ -14,13 +14,14 @@ import org.kordamp.ikonli.feather.Feather;
 import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.model.ConnectionProfile;
 import ro.fintechpro.core.service.ConfigService;
+import ro.fintechpro.ui.ide.MainIdeView;
 
 import java.util.Optional;
 
 public class ConnectionManagerView {
 
     private final ConfigService configService = new ConfigService();
-    private final DataSourceManager dbManager = new DataSourceManager();
+    private final DataSourceManager dbManager = DataSourceManager.getInstance();
     private final ListView<ConnectionProfile> list = new ListView<>();
 
     public Parent getView(Stage stage) {
