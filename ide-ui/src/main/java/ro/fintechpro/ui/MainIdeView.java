@@ -52,7 +52,7 @@ public class MainIdeView {
         ToolBar toolbar = new ToolBar(runBtn, new Separator(), new Label("Limit: 500"));
 
         // 2. Editor
-        sqlEditor.replaceText(0, 0, "SELECT * FROM public.users;");
+//        sqlEditor.replaceText(0, 0, "SELECT * FROM public.users;");
         // Add Line Numbers (Optional but professional)
         sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
 

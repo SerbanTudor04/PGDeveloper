@@ -58,4 +58,17 @@ public class MetadataService {
         }
         return procs;
     }
+
+    public List<String> getFunctions(String schema) throws Exception {
+        List<String> functions = new ArrayList<>();
+        try (Connection conn = dbManager.getConnection();
+             // JDBC 4.2 Standard method for Functions
+             ResultSet rs = conn.getMetaData().getFunctions(null, schema, "%")) {
+
+            while (rs.next()) {
+                functions.add(rs.getString("FUNCTION_NAME"));
+            }
+        }
+        return functions;
+    }
 }

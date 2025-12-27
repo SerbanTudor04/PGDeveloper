@@ -2,36 +2,43 @@
     -fx-font-family: "Monospaced";
     -fx-font-size: 14px;
 
-    /* BACKGROUND COLOR (Nord Dark) */
-    -fx-background-color: #fff;
+    /* LIGHT BACKGROUND */
+    -fx-background-color: #ffffff;
 
-    /* IMPORTANT: BASE TEXT COLOR */
-    -fx-fill: #d8dee9; /* Light Grey/White */
-    -fx-text-fill: #d8dee9;
-    -fx-highlight-fill: #4c566a; /* Selection Color */
-    -fx-highlight-text-fill: white;
+    /* BASE TEXT COLOR (Dark Grey/Black) */
+    -fx-fill: #24292e;
+    -fx-text-fill: #24292e;
+
+    /* Selection Colors */
+    -fx-highlight-fill: #b3d7ff;
+    -fx-highlight-text-fill: black;
 }
+
+/* KEYWORDS (Bold Blue) */
 .keyword {
-    -fx-fill: #81a1c1; /* Nord Blue */
+    -fx-fill: #0033b3;
     -fx-font-weight: bold;
 }
 
-.semicolon {
-    -fx-fill: #81a1c1;
-    -fx-font-weight: bold;
-}
-
+/* STRINGS (Green) */
 .string {
-    -fx-fill: #a3be8c; /* Nord Green */
+    -fx-fill: #067d17;
 }
 
+/* COMMENTS (Grey Italic) */
 .comment {
-    -fx-fill: #616e88; /* Nord Grey */
+    -fx-fill: #8c8c8c;
     -fx-font-style: italic;
 }
 
+/* PARENTHESES / BRACKETS */
 .paren {
-    -fx-fill: #d8dee9; /* Nord White */
+    -fx-fill: #24292e;
     -fx-font-weight: bold;
 }
 
+/* SEMICOLON */
+.semicolon {
+    -fx-fill: #24292e;
+    -fx-font-weight: bold;
+}

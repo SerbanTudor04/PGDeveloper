@@ -40,7 +40,6 @@ public class SidebarView extends VBox {
             for (String schema : schemas) {
                 TreeItem<String> schemaItem = new TreeItem<>(schema, new FontIcon(Feather.FOLDER));
 
-                // Fetch Tables
                 List<MetadataService.DbObject> tables = metaService.getTables(schema);
                 if (!tables.isEmpty()) {
                     TreeItem<String> tablesGroup = new TreeItem<>("Tables", new FontIcon(Feather.LIST));
@@ -50,12 +49,22 @@ public class SidebarView extends VBox {
                     schemaItem.getChildren().add(tablesGroup);
                 }
 
-                // Fetch Functions
+                // 2. Fetch Procedures (Existing)
                 List<String> procs = metaService.getProcedures(schema);
                 if (!procs.isEmpty()) {
-                    TreeItem<String> funcGroup = new TreeItem<>("Procedures", new FontIcon(Feather.CODE));
+                    TreeItem<String> procGroup = new TreeItem<>("Procedures", new FontIcon(Feather.PLAY_CIRCLE));
                     for (String proc : procs) {
-                        funcGroup.getChildren().add(new TreeItem<>(proc, new FontIcon(Feather.PLAY_CIRCLE)));
+                        procGroup.getChildren().add(new TreeItem<>(proc, new FontIcon(Feather.TERMINAL)));
+                    }
+                    schemaItem.getChildren().add(procGroup);
+                }
+
+                // 3. Fetch Functions (NEW)
+                List<String> funcs = metaService.getFunctions(schema);
+                if (!funcs.isEmpty()) {
+                    TreeItem<String> funcGroup = new TreeItem<>("Functions", new FontIcon(Feather.ACTIVITY)); // distinct icon
+                    for (String func : funcs) {
+                        funcGroup.getChildren().add(new TreeItem<>(func, new FontIcon(Feather.CODE)));
                     }
                     schemaItem.getChildren().add(funcGroup);
                 }
