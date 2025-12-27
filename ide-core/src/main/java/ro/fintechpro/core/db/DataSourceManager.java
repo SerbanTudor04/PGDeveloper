@@ -74,4 +74,8 @@ public class DataSourceManager {
             dataSource.close();
         }
     }
+    public String getConnectionInfoOrName() {
+        if (dataSource != null) return dataSource.getJdbcUrl();
+        return "Disconnected";
+    }
 }
