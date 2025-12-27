@@ -33,7 +33,7 @@ public class ConfigService {
         saveAll(current);
     }
 
-    private void saveAll(List<ConnectionProfile> profiles) {
+    public void saveAll(List<ConnectionProfile> profiles) {
         try {
             Files.createDirectories(Paths.get(CONFIG_DIR));
             try (Writer writer = new FileWriter(CONFIG_FILE)) {

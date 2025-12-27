@@ -1,6 +1,7 @@
 package ro.fintechpro.ui;
 
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -10,6 +11,8 @@ import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.model.ConnectionProfile;
 import ro.fintechpro.core.service.ConfigService;
 
+import java.util.Optional;
+
 public class ConnectionManagerView {
 
     private final ConfigService configService = new ConfigService();
@@ -18,53 +21,114 @@ public class ConnectionManagerView {
 
     public Parent getView(Stage stage) {
         // 1. Load existing profiles
-        list.getItems().addAll(configService.loadConnections());
+        list.getItems().setAll(configService.loadConnections());
 
-        // 2. "Connect" Button Logic
-        Button connectBtn = new Button("Connect to Selected");
+        // 2. CONNECT Button
+        Button connectBtn = new Button("Connect");
+        connectBtn.setStyle("-fx-font-weight: bold; -fx-base: #b3ffcc;");
         connectBtn.setOnAction(e -> {
             ConnectionProfile selected = list.getSelectionModel().getSelectedItem();
             if (selected != null) {
-                askPasswordAndConnect(selected, stage);
+                // If password exists, skip the prompt
+                if (selected.getPassword() != null && !selected.getPassword().isEmpty()) {
+                    connectDirectly(selected, stage);
+                } else {
+                    askPasswordAndConnect(selected, stage);
+                }
+            } else {
+                showAlert("Selection Required", "Please select a connection.");
             }
         });
 
-        // 3. "Add New" Button Logic
-        Button addBtn = new Button("Add New Connection");
-        addBtn.setOnAction(e -> showAddDialog(stage));
+        // 3. ADD Button
+        Button addBtn = new Button("Add");
+        addBtn.setOnAction(e -> new ConnectionProfileDialog(configService, list).show());
+
+        // 4. EDIT Button
+        Button editBtn = new Button("Edit");
+        editBtn.setOnAction(e -> {
+            ConnectionProfile selected = list.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                new ConnectionProfileDialog(configService, list, selected).show();
+            } else {
+                showAlert("Selection Required", "Please select a connection to edit.");
+            }
+        });
+
+        // 5. DELETE Button
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.setStyle("-fx-text-fill: red;");
+        deleteBtn.setOnAction(e -> {
+            ConnectionProfile selected = list.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Delete " + selected.getName() + "?");
+                confirm.showAndWait().ifPresent(response -> {
+                    if (response == ButtonType.OK) {
+                        list.getItems().remove(selected);
+                        configService.saveAll(list.getItems());
+                    }
+                });
+            } else {
+                showAlert("Selection Required", "Please select a connection to delete.");
+            }
+        });
 
         // Layout
-        VBox root = new VBox(10, new Label("Saved Connections:"), list, new HBox(10, connectBtn, addBtn));
+        HBox buttons = new HBox(10, connectBtn, addBtn, editBtn, deleteBtn);
+        buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(10, 0, 0, 0));
+
+        VBox root = new VBox(10, new Label("Saved Connections:"), list, buttons);
         root.setPadding(new Insets(20));
         return root;
     }
 
+    // --- HELPER METHODS ---
+
+    private void connectDirectly(ConnectionProfile profile, Stage stage) {
+        try {
+            dbManager.connect(
+                    profile.getHost(),
+                    profile.getPort(),
+                    profile.getDatabase(),
+                    profile.getUsername(),
+                    profile.getPassword(),
+                    profile.isUseSsl()
+            );
+
+            if (dbManager.testConnection()) {
+                switchToIde(stage);
+            } else {
+                showAlert("Connection Failed", "Saved credentials failed. Check your network or password.");
+            }
+        } catch (Exception ex) {
+            showAlert("Error", ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
     private void askPasswordAndConnect(ConnectionProfile profile, Stage stage) {
-        // Simple Password Dialog
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Authentication");
         dialog.setHeaderText("Enter password for " + profile.getUsername());
         dialog.setContentText("Password:");
 
-        dialog.showAndWait().ifPresent(password -> {
+        Optional<String> result = dialog.showAndWait();
+        result.ifPresent(password -> {
             try {
-                // Try to connect
                 dbManager.connect(
                         profile.getHost(),
                         profile.getPort(),
                         profile.getDatabase(),
                         profile.getUsername(),
-                        password, // Password from dialog
+                        password,
                         profile.isUseSsl()
                 );
 
                 if (dbManager.testConnection()) {
-                    // SUCCESS! Switch to IDE Mode
-                    MainIdeView ideView = new MainIdeView();
-                    stage.setScene(new Scene(ideView.getView(), 1024, 768));
-                    stage.centerOnScreen();
+                    switchToIde(stage);
                 } else {
-                    showAlert("Connection Failed", "Could not connect to database.");
+                    showAlert("Connection Failed", "Authentication failed.");
                 }
             } catch (Exception ex) {
                 showAlert("Error", ex.getMessage());
@@ -72,14 +136,15 @@ public class ConnectionManagerView {
         });
     }
 
-    private void showAddDialog(Stage owner) {
-        // This reuses your old logic but in a popup to save the profile
-        AddConnectionDialog dialog = new AddConnectionDialog(configService, list);
-        dialog.show();
+    private void switchToIde(Stage stage) {
+        MainIdeView ideView = new MainIdeView();
+        stage.setScene(new Scene(ideView.getView(), 1024, 768));
+        stage.centerOnScreen();
+        stage.setTitle("PgDeveloper - IDE Mode");
     }
 
     private void showAlert(String title, String content) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+        Alert alert = new Alert(Alert.AlertType.ERROR); // Or WARNING/INFORMATION depending on context
         alert.setTitle(title);
         alert.setContentText(content);
         alert.show();
