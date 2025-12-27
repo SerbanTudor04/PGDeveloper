@@ -1,9 +1,16 @@
 .styled-text-area {
     -fx-font-family: "Monospaced";
     -fx-font-size: 14px;
-    -fx-background-color: #2e3440; /* Nord Dark Background */
-}
 
+    /* BACKGROUND COLOR (Nord Dark) */
+    -fx-background-color: #fff;
+
+    /* IMPORTANT: BASE TEXT COLOR */
+    -fx-fill: #d8dee9; /* Light Grey/White */
+    -fx-text-fill: #d8dee9;
+    -fx-highlight-fill: #4c566a; /* Selection Color */
+    -fx-highlight-text-fill: white;
+}
 .keyword {
     -fx-fill: #81a1c1; /* Nord Blue */
     -fx-font-weight: bold;
@@ -27,3 +34,4 @@
     -fx-fill: #d8dee9; /* Nord White */
     -fx-font-weight: bold;
 }
+

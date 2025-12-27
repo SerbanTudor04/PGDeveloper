@@ -1,17 +1,22 @@
-package ro.fintechpro.ui.ide;
+package ro.fintechpro.ui;
 
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Parent;
+import org.fxmisc.flowless.VirtualizedScrollPane;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import org.fxmisc.richtext.CodeArea;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
+import ro.fintechpro.ui.ide.ResultTableBuilder;
+import ro.fintechpro.ui.ide.SidebarView;
+import ro.fintechpro.ui.ide.SqlSyntaxHighlighter;
 
 import java.util.List;
 
@@ -22,7 +27,7 @@ public class MainIdeView {
     private final QueryExecutor queryExecutor = new QueryExecutor();
 
     private final SidebarView sidebar = new SidebarView();
-    private final TextArea sqlEditor = new TextArea("SELECT * FROM public.users;"); // Default text
+    private final CodeArea sqlEditor = new CodeArea();
     private final TableView<List<Object>> resultsTable = new TableView<>();
     private final TextArea messageConsole = new TextArea(); // For messages like "Rows updated: 5"
 
@@ -47,8 +52,16 @@ public class MainIdeView {
         ToolBar toolbar = new ToolBar(runBtn, new Separator(), new Label("Limit: 500"));
 
         // 2. Editor
-        sqlEditor.setFont(javafx.scene.text.Font.font("Monospaced", 14));
+        sqlEditor.replaceText(0, 0, "SELECT * FROM public.users;");
+        // Add Line Numbers (Optional but professional)
+        sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
 
+        // Enable Syntax Highlighting
+        SqlSyntaxHighlighter.enable(sqlEditor);
+        sqlEditor.getStyleClass().add("styled-text-area");
+
+        // CodeArea needs a special wrapper to scroll properly
+        VirtualizedScrollPane<CodeArea> editorScroll = new VirtualizedScrollPane<>(sqlEditor);
         // 3. Results Area (TabPane to switch between Grid and Messages)
         TabPane resultTabs = new TabPane();
         Tab gridTab = new Tab("Grid", resultsTable);
@@ -61,7 +74,7 @@ public class MainIdeView {
         resultTabs.getTabs().addAll(gridTab, msgTab);
 
         // Split Pane (Editor on Top, Results on Bottom)
-        SplitPane splitPane = new SplitPane(sqlEditor, resultTabs);
+        SplitPane splitPane = new SplitPane(editorScroll, resultTabs);
         splitPane.setOrientation(Orientation.VERTICAL);
         splitPane.setDividerPositions(0.6); // Editor takes 60% height
 

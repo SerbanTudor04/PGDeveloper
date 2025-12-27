@@ -14,7 +14,7 @@ import org.kordamp.ikonli.feather.Feather;
 import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.model.ConnectionProfile;
 import ro.fintechpro.core.service.ConfigService;
-import ro.fintechpro.ui.ide.MainIdeView;
+import ro.fintechpro.ui.MainIdeView;
 
 import java.util.Optional;
 
