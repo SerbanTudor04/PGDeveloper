@@ -3,7 +3,6 @@ package ro.fintechpro.ui;
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
-import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
@@ -17,6 +16,7 @@ import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
 import ro.fintechpro.core.spi.SidebarPlugin;
+import ro.fintechpro.ui.ide.DockLayout;
 import ro.fintechpro.ui.ide.ResultTableBuilder;
 import ro.fintechpro.ui.ide.SidebarView;
 import ro.fintechpro.ui.ide.SqlSyntaxHighlighter;
@@ -28,166 +28,138 @@ import java.util.List;
 
 public class MainIdeView {
 
+    // Services
     private final DataSourceManager dbManager = DataSourceManager.getInstance();
     private final MetadataService metaService = new MetadataService(dbManager);
     private final QueryExecutor queryExecutor = new QueryExecutor();
     private final LocalIndexService indexService = new LocalIndexService();
 
-    // --- PLUGINS ---
-    // Register your Sidebar components here
-    private final List<SidebarPlugin> availablePlugins = List.of(
-            new TablePlugin(),
-            new FunctionPlugin()
-    );
-
-    // Inject plugins into Sidebar
-    private final SidebarView sidebar = new SidebarView(availablePlugins);
-
     // UI Components
+    private final List<SidebarPlugin> plugins = List.of(new TablePlugin(), new FunctionPlugin());
+    private final SidebarView sidebar = new SidebarView(plugins);
+
     private final CodeArea sqlEditor = new CodeArea();
     private final TableView<List<Object>> resultsTable = new TableView<>();
     private final TextArea messageConsole = new TextArea();
     private final ProgressBar progressBar = new ProgressBar();
     private final Label statusLabel = new Label("Ready");
-    private final ComboBox<Integer> limitBox = new ComboBox<>(); // Limit selector
+
+    // NEW: Docking System
+    private DockLayout dockLayout;
 
     public Parent getView() {
+        // 1. SETUP EDITOR (Center Component)
+        // We wrap the editor in a VBox with the Header, so the header stays attached to the code
+        VBox editorWrapper = createEditorArea();
+
+        // 2. INITIALIZE DOCKING SYSTEM
+        dockLayout = new DockLayout(editorWrapper);
+
+        // 3. DOCK COMPONENTS
+        // Sidebar -> Left
+        dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT);
+
+        // Results & Messages -> Bottom (Stacked)
+        dockLayout.dock(resultsTable, "Query Results", DockLayout.Location.BOTTOM);
+        dockLayout.dock(messageConsole, "Console", DockLayout.Location.BOTTOM);
+
+        // 4. SETUP MENU BAR (To re-open closed views)
+        MenuBar menuBar = createMenuBar();
+
+        // 5. ROOT LAYOUT
         BorderPane root = new BorderPane();
+        root.setTop(menuBar);
+        root.setCenter(dockLayout);
+        root.setBottom(createStatusBar());
 
-        // 1. SETUP SIDEBAR RESIZING
-        sidebar.setMinWidth(200);
-        sidebar.setMaxWidth(600);
-        // Wire up the refresh logic (Sidebar controls UI, we control logic)
+        // Wire Logic
         sidebar.setOnRefresh(this::runIntrospection);
-
-        // 2. MODERN HEADER BAR
-        // A. Left: Execution Controls
-        Button runBtn = new Button("Run", new FontIcon(Feather.PLAY));
-        runBtn.getStyleClass().addAll(Styles.SUCCESS, Styles.SMALL);
-        runBtn.setOnAction(e -> executeQuery());
-
-        Button cancelBtn = new Button(null, new FontIcon(Feather.SQUARE));
-        cancelBtn.getStyleClass().addAll(Styles.DANGER, Styles.BUTTON_ICON, Styles.SMALL);
-        cancelBtn.setTooltip(new Tooltip("Cancel Query"));
-        cancelBtn.setDisable(true); // Placeholder
-
-        HBox actions = new HBox(5, runBtn, cancelBtn);
-        actions.setAlignment(Pos.CENTER_LEFT);
-
-        // B. Center: Context Information
-        // Shows "Active Connection" or DB name
-        Label contextLabel = new Label("Active Connection", new FontIcon(Feather.DATABASE));
-        contextLabel.getStyleClass().addAll(Styles.TEXT_MUTED, Styles.SMALL);
-
-        // C. Right: Settings (Limit Selector)
-        Label limitLabel = new Label("Limit:");
-        limitLabel.getStyleClass().add(Styles.TEXT_MUTED);
-
-        limitBox.getItems().addAll(100, 500, 1000, 5000, 10000);
-        limitBox.setValue(500);
-        limitBox.getStyleClass().add(Styles.SMALL);
-        limitBox.setPrefWidth(80);
-
-        HBox settings = new HBox(8, limitLabel, limitBox);
-        settings.setAlignment(Pos.CENTER_RIGHT);
-
-        // Spacer to push settings to right
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Assemble Header
-        HBox header = new HBox(15, actions, new Separator(Orientation.VERTICAL), contextLabel, spacer, settings);
-        header.setPadding(new Insets(8, 15, 8, 15));
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setStyle("-fx-background-color: -color-bg-default; -fx-border-color: -color-border-default; -fx-border-width: 0 0 1 0;");
-
-        // 3. EDITOR & RESULTS (Center Area)
-        // Setup CodeArea
-        sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
-        SqlSyntaxHighlighter.enable(sqlEditor);
-        sqlEditor.getStyleClass().add("styled-text-area");
-        VirtualizedScrollPane<CodeArea> editorScroll = new VirtualizedScrollPane<>(sqlEditor);
-
-        // Setup Results
-        TabPane resultTabs = new TabPane();
-        Tab gridTab = new Tab("Grid", resultsTable);
-        gridTab.setClosable(false);
-        Tab msgTab = new Tab("Messages", messageConsole);
-        msgTab.setClosable(false);
-        messageConsole.setEditable(false);
-        resultTabs.getTabs().addAll(gridTab, msgTab);
-
-        // Vertical Split (Code vs Results)
-        SplitPane verticalSplit = new SplitPane(editorScroll, resultTabs);
-        verticalSplit.setOrientation(Orientation.VERTICAL);
-        verticalSplit.setDividerPositions(0.6); // Code takes 60%
-        VBox.setVgrow(verticalSplit, Priority.ALWAYS);
-
-        // Combine Header + Vertical Split
-        VBox centerContent = new VBox(header, verticalSplit);
-
-        // 4. MAIN SPLIT (Sidebar vs Content)
-        SplitPane mainSplit = new SplitPane();
-        mainSplit.getItems().addAll(sidebar, centerContent);
-        mainSplit.setDividerPositions(0.2); // Sidebar takes 20%
-        mainSplit.getStyleClass().add(Styles.DENSE);
-
-        // 5. FINALIZE ROOT
-        root.setCenter(mainSplit);
-
-        // Bottom Status Bar
-        HBox statusBar = new HBox(10, statusLabel, progressBar);
-        statusBar.setPadding(new Insets(5));
-        statusBar.setStyle("-fx-background-color: -color-bg-subtle; -fx-font-size: 11px;");
-        statusBar.setAlignment(Pos.CENTER_LEFT);
-        progressBar.setVisible(false);
-        root.setBottom(statusBar);
-
-        // Initial Load (No callback needed)
         runIntrospection(null);
 
         return root;
     }
 
-    // --- LOGIC ---
+    private VBox createEditorArea() {
+        // --- Header (Run Button, Limit, etc.) ---
+        Button runBtn = new Button("Run", new FontIcon(Feather.PLAY));
+        runBtn.getStyleClass().addAll(Styles.SUCCESS, Styles.SMALL);
+        runBtn.setOnAction(e -> executeQuery());
+
+        HBox header = new HBox(10, runBtn, new Separator(javafx.geometry.Orientation.VERTICAL), new Label("Limit: 500"));
+        header.setPadding(new Insets(5, 10, 5, 10));
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setStyle("-fx-border-color: -color-border-default; -fx-border-width: 0 0 1 0;");
+
+        // --- Code Editor ---
+        sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
+        SqlSyntaxHighlighter.enable(sqlEditor);
+        sqlEditor.getStyleClass().add("styled-text-area");
+        VirtualizedScrollPane<CodeArea> scroll = new VirtualizedScrollPane<>(sqlEditor);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        return new VBox(header, scroll);
+    }
+
+    private MenuBar createMenuBar() {
+        MenuBar menuBar = new MenuBar();
+        Menu viewMenu = new Menu("View");
+
+        // Helper to add menu items that re-open windows
+        MenuItem openExplorer = new MenuItem("Database Explorer");
+        openExplorer.setOnAction(e -> dockLayout.dock(sidebar, "Explorer", DockLayout.Location.LEFT));
+
+        MenuItem openResults = new MenuItem("Query Results");
+        openResults.setOnAction(e -> dockLayout.dock(resultsTable, "Query Results", DockLayout.Location.BOTTOM));
+
+        viewMenu.getItems().addAll(openExplorer, openResults);
+        menuBar.getMenus().add(viewMenu);
+        return menuBar;
+    }
+
+    private HBox createStatusBar() {
+        HBox bar = new HBox(10, statusLabel, progressBar);
+        bar.setPadding(new Insets(3));
+        bar.setStyle("-fx-font-size: 11px; -fx-background-color: -color-bg-subtle;");
+        bar.setAlignment(Pos.CENTER_LEFT);
+        progressBar.setVisible(false);
+        return bar;
+    }
+
+    // --- LOGIC (Introspection & Execution) ---
+    // (This remains largely the same, just targeting the new UI structure)
 
     private void executeQuery() {
         String sql = sqlEditor.getSelectedText();
-        if (sql == null || sql.trim().isEmpty()) {
-            sql = sqlEditor.getText();
-        }
-
+        if (sql == null || sql.trim().isEmpty()) sql = sqlEditor.getText();
         if (sql.trim().isEmpty()) return;
 
         final String finalSql = sql;
-        statusLabel.setText("Executing query...");
+        statusLabel.setText("Executing...");
         progressBar.setVisible(true);
 
         new Thread(() -> {
             try {
-                // Execute logic
                 var result = queryExecutor.execute(finalSql);
-
                 Platform.runLater(() -> {
+                    // Ensure the panels are visible/docked when we get results
+                    dockLayout.dock(result.isResultSet() ? resultsTable : messageConsole,
+                            result.isResultSet() ? "Query Results" : "Console",
+                            DockLayout.Location.BOTTOM);
+
                     if (result.isResultSet()) {
                         ResultTableBuilder.populate(resultsTable, result);
-                        messageConsole.setText(result.message());
-                        ((TabPane)resultsTable.getParent().getParent()).getSelectionModel().select(0); // Grid Tab
                     } else {
                         messageConsole.setText(result.message());
-                        ((TabPane)resultsTable.getParent().getParent()).getSelectionModel().select(1); // Message Tab
                     }
-                    statusLabel.setText("Execution finished.");
+                    statusLabel.setText("Done.");
                     progressBar.setVisible(false);
                 });
-
             } catch (Exception e) {
                 Platform.runLater(() -> {
-                    messageConsole.setText("Error:\n" + e.getMessage());
-                    statusLabel.setText("Execution failed.");
-                    statusLabel.setStyle("-fx-text-fill: -color-danger-fg;");
+                    dockLayout.dock(messageConsole, "Console", DockLayout.Location.BOTTOM);
+                    messageConsole.setText("Error: " + e.getMessage());
+                    statusLabel.setText("Failed.");
                     progressBar.setVisible(false);
-                    ((TabPane)resultsTable.getParent().getParent()).getSelectionModel().select(1);
                 });
             }
         }).start();
@@ -196,46 +168,27 @@ public class MainIdeView {
     private void runIntrospection(Runnable onComplete) {
         if (onComplete == null) {
             progressBar.setVisible(true);
-            statusLabel.setText("Indexing database structure...");
-        } else {
-            statusLabel.setText("Refreshing structure...");
+            statusLabel.setText("Indexing...");
         }
 
         new Thread(() -> {
             try {
-                // 1. Clear & Re-Index
                 indexService.clearIndex();
                 List<LocalIndexService.SearchResult> batch = new ArrayList<>();
-                List<String> schemas = metaService.getSchemas();
-
-                for (String schema : schemas) {
-                    for (SidebarPlugin plugin : availablePlugins) {
-                        batch.addAll(plugin.getIndexItems(schema, metaService));
-                    }
+                for (String s : metaService.getSchemas()) {
+                    for (SidebarPlugin p : plugins) batch.addAll(p.getIndexItems(s, metaService));
                 }
-
                 indexService.indexItems(batch);
 
-                // 2. Update UI
                 Platform.runLater(() -> {
                     sidebar.populate(metaService);
                     sidebar.setupSearch(indexService);
-
-                    statusLabel.setText("Ready. (" + batch.size() + " objects indexed)");
-                    statusLabel.setStyle(""); // Reset color
+                    statusLabel.setText("Ready.");
                     progressBar.setVisible(false);
-
                     if (onComplete != null) onComplete.run();
                 });
-
             } catch (Exception e) {
                 e.printStackTrace();
-                Platform.runLater(() -> {
-                    statusLabel.setText("Error: " + e.getMessage());
-                    statusLabel.setStyle("-fx-text-fill: -color-danger-fg;");
-                    progressBar.setVisible(false);
-                    if (onComplete != null) onComplete.run();
-                });
             }
         }).start();
     }
