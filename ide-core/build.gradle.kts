@@ -18,6 +18,8 @@ dependencies {
 
     // Logging (Required by HikariCP to see errors/info)
     implementation("org.slf4j:slf4j-simple:2.0.9")
+
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 tasks.test {

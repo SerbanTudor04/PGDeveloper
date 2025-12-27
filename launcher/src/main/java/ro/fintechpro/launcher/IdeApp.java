@@ -3,17 +3,18 @@ package ro.fintechpro.launcher;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import ro.fintechpro.ui.MainWindow; // Import from ide-ui module
+import ro.fintechpro.ui.ConnectionManagerView;
 
 
 public class IdeApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        MainWindow mainWindow = new MainWindow();
-        Scene scene = new Scene(mainWindow.getView(), 800, 600);
+        ConnectionManagerView manager = new ConnectionManagerView();
 
-        primaryStage.setTitle("PgDeveloper");
+        Scene scene = new Scene(manager.getView(primaryStage), 600, 400);
+
+        primaryStage.setTitle("PgDeveloper - Connection Manager");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
