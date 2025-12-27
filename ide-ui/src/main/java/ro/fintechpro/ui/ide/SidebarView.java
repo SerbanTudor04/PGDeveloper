@@ -177,4 +177,36 @@ public class SidebarView extends VBox {
         HBox buttons = (HBox) header.getChildren().get(1);
         return (Button) buttons.getChildren().get(0);
     }
+
+    /**
+     * Registers the action to run when the refresh button is clicked.
+     * The Sidebar handles the visual state (Spinner/Disable), and the consumer
+     * handles the actual logic.
+     *
+     * @param refreshAction A Consumer that accepts a "Reset Callback" (Runnable).
+     * The Main View must call this Runnable when finished.
+     */
+    public void setOnRefresh(java.util.function.Consumer<Runnable> refreshAction) {
+        // We can reuse the helper method or get it directly
+        HBox header = (HBox) getChildren().get(0);
+        HBox buttons = (HBox) header.getChildren().get(1);
+        Button refreshBtn = (Button) buttons.getChildren().get(0);
+
+        refreshBtn.setOnAction(e -> {
+            // 1. Visual Feedback: Change Icon to Spinner & Disable
+            var originalIcon = refreshBtn.getGraphic();
+            ProgressIndicator spinner = new ProgressIndicator();
+            spinner.setMaxSize(16, 16);
+            refreshBtn.setGraphic(spinner);
+            refreshBtn.setDisable(true);
+
+            // 2. Trigger the external action
+            // We pass a lambda () -> { ... } that restores the button.
+            // The MainIdeView will call this lambda when it's done.
+            refreshAction.accept(() -> {
+                refreshBtn.setGraphic(originalIcon);
+                refreshBtn.setDisable(false);
+            });
+        });
+    }
 }

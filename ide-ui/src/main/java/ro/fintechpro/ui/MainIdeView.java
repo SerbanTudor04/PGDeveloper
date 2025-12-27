@@ -53,47 +53,58 @@ public class MainIdeView {
     public Parent getView() {
         BorderPane root = new BorderPane();
 
-        // --- LEFT: Sidebar ---
-        sidebar.setPrefWidth(250);
-        sidebar.setStyle("-fx-border-color: -color-border-default; -fx-border-width: 0 1 0 0;");
-        root.setLeft(sidebar);
+        // --- 1. SETUP SIDEBAR (New: Constraints for resizing) ---
+        // Don't set a fixed PrefWidth, instead set Min/Max so it doesn't break
+        sidebar.setMinWidth(200);
+        sidebar.setMaxWidth(600);
 
-        // --- CENTER: Editor & Results ---
+        // --- 2. SETUP CENTER AREA (Toolbar + Editor + Results) ---
+        // (This part stays mostly the same, just creating the object)
 
-        // 1. Toolbar
         Button runBtn = new Button("Execute", new FontIcon(Feather.PLAY));
         runBtn.getStyleClass().addAll(Styles.SUCCESS, Styles.SMALL);
         runBtn.setOnAction(e -> executeQuery());
 
         ToolBar toolbar = new ToolBar(runBtn, new Separator(), new Label("Limit: 500"));
 
-        // 2. Editor
-        // sqlEditor.replaceText(0, 0, "SELECT * FROM public.users;");
         sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
-
         SqlSyntaxHighlighter.enable(sqlEditor);
         sqlEditor.getStyleClass().add("styled-text-area");
-
         VirtualizedScrollPane<CodeArea> editorScroll = new VirtualizedScrollPane<>(sqlEditor);
 
-        // 3. Results Area
         TabPane resultTabs = new TabPane();
         Tab gridTab = new Tab("Grid", resultsTable);
         gridTab.setClosable(false);
-
         Tab msgTab = new Tab("Messages", messageConsole);
         msgTab.setClosable(false);
         messageConsole.setEditable(false);
-
         resultTabs.getTabs().addAll(gridTab, msgTab);
 
-        SplitPane splitPane = new SplitPane(editorScroll, resultTabs);
-        splitPane.setOrientation(Orientation.VERTICAL);
-        splitPane.setDividerPositions(0.6);
+        // Vertical Split: Editor (Top) vs Results (Bottom)
+        SplitPane verticalSplit = new SplitPane(editorScroll, resultTabs);
+        verticalSplit.setOrientation(Orientation.VERTICAL);
+        verticalSplit.setDividerPositions(0.6);
+        VBox.setVgrow(verticalSplit, Priority.ALWAYS);
 
-        VBox centerArea = new VBox(toolbar, splitPane);
-        VBox.setVgrow(splitPane, Priority.ALWAYS);
-        root.setCenter(centerArea);
+        VBox centerArea = new VBox(toolbar, verticalSplit);
+
+        // --- 3. NEW: HORIZONTAL SPLIT PANE (Sidebar vs Center) ---
+        // This replaces root.setLeft() and root.setCenter()
+        SplitPane mainSplit = new SplitPane();
+        mainSplit.getItems().addAll(sidebar, centerArea);
+
+        // Set initial divider position (e.g., 20% for sidebar)
+        mainSplit.setDividerPositions(0.2);
+
+        // Add styling to make the divider look nice (optional)
+        mainSplit.getStyleClass().add(Styles.DENSE);
+
+        // --- 4. ASSEMBLE ROOT ---
+        // The SplitPane is now the center of the application
+        root.setCenter(mainSplit);
+
+        // Wire up the sidebar refresh logic
+        sidebar.setOnRefresh(this::runIntrospection);
 
         // --- BOTTOM: Status Bar ---
         HBox statusBar = new HBox(10, statusLabel, progressBar);
@@ -104,7 +115,7 @@ public class MainIdeView {
         root.setBottom(statusBar);
 
         // Start Introspection
-        runIntrospection();
+        runIntrospection(null);
 
         return root;
     }
@@ -150,36 +161,42 @@ public class MainIdeView {
         }).start();
     }
 
-    private void runIntrospection() {
-        progressBar.setVisible(true);
-        statusLabel.setText("Indexing database structure...");
+    private void runIntrospection(Runnable onComplete) {
+        // Only show bottom bar if it's the initial load (optional, keeps it "silent" for refresh)
+        if (onComplete == null) {
+            progressBar.setVisible(true);
+            statusLabel.setText("Indexing database structure...");
+        } else {
+            statusLabel.setText("Refreshing structure...");
+        }
 
         new Thread(() -> {
             try {
-                // 1. Clear old index
+                // 1. Clear & Re-Index
                 indexService.clearIndex();
                 List<LocalIndexService.SearchResult> batch = new ArrayList<>();
                 List<String> schemas = metaService.getSchemas();
 
                 for (String schema : schemas) {
-                    // --- DYNAMIC INDEXING ---
-                    // Instead of hardcoding "getTables", we let each plugin provide its items
                     for (SidebarPlugin plugin : availablePlugins) {
-                        List<LocalIndexService.SearchResult> items = plugin.getIndexItems(schema, metaService);
-                        batch.addAll(items);
+                        batch.addAll(plugin.getIndexItems(schema, metaService));
                     }
                 }
 
-                // 2. Insert into H2
                 indexService.indexItems(batch);
 
-                // 3. Update UI
+                // 2. Update UI
                 Platform.runLater(() -> {
                     sidebar.populate(metaService);
                     sidebar.setupSearch(indexService);
 
-                    statusLabel.setText("Introspection & Indexing complete. (" + batch.size() + " objects)");
+                    statusLabel.setText("Ready. (" + batch.size() + " objects indexed)");
                     progressBar.setVisible(false);
+
+                    // Trigger the callback (e.g., stop the refresh button spinner)
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
                 });
 
             } catch (Exception e) {
@@ -187,6 +204,7 @@ public class MainIdeView {
                 Platform.runLater(() -> {
                     statusLabel.setText("Error: " + e.getMessage());
                     progressBar.setVisible(false);
+                    if (onComplete != null) onComplete.run(); // Ensure button resets even on error
                 });
             }
         }).start();
