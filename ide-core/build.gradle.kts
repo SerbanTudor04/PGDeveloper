@@ -20,6 +20,7 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.9")
 
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.h2database:h2:2.2.224")
 }
 
 tasks.test {

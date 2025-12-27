@@ -10,8 +10,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
+import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
+import ro.fintechpro.core.spi.SidebarPlugin;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SidebarView extends VBox {
@@ -20,10 +23,18 @@ public class SidebarView extends VBox {
     private final TreeItem<String> rootItem;
     private final TextField searchField;
 
-    public SidebarView() {
+    // Injected Plugins
+    private final List<SidebarPlugin> plugins;
+
+    // Backup list to restore tree after clearing search
+    private final List<TreeItem<String>> originalStructure = new ArrayList<>();
+
+    public SidebarView(List<SidebarPlugin> plugins) {
+        this.plugins = plugins;
+
         this.setSpacing(5);
         this.setPadding(new Insets(5));
-        this.getStyleClass().add("sidebar-container"); // Useful for CSS later
+        this.getStyleClass().add("sidebar-container");
 
         // --- 1. Header (Title + Actions) ---
         Label title = new Label("Explorer");
@@ -39,7 +50,7 @@ public class SidebarView extends VBox {
         collapseBtn.setOnAction(e -> collapseAll());
 
         HBox header = new HBox(10, title, new HBox(refreshBtn, collapseBtn));
-        HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS); // Push buttons to right
+        HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS);
         ((HBox)header.getChildren().get(1)).setAlignment(Pos.CENTER_RIGHT);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(0, 5, 5, 5));
@@ -47,7 +58,6 @@ public class SidebarView extends VBox {
         // --- 2. Search Bar ---
         searchField = new TextField();
         searchField.setPromptText("Search objects...");
-        searchField.setLeft(new FontIcon(Feather.SEARCH)); // AtlantaFX feature
         searchField.getStyleClass().add(Styles.SMALL);
 
         // --- 3. The Tree ---
@@ -59,7 +69,7 @@ public class SidebarView extends VBox {
         treeView.getStyleClass().add(Styles.DENSE);
         VBox.setVgrow(treeView, Priority.ALWAYS);
 
-        // Custom Cell Factory for Professional Look
+        // Custom Cell Factory
         treeView.setCellFactory(tv -> new TreeCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -70,8 +80,7 @@ public class SidebarView extends VBox {
                 } else {
                     setText(item);
                     setGraphic(getTreeItem().getGraphic());
-                    // Style specific levels if needed (e.g. bold schemas)
-                    if (getTreeItem().getParent() == rootItem) {
+                    if (getTreeItem().getParent() == null) {
                         getStyleClass().add(Styles.TEXT_BOLD);
                     }
                 }
@@ -81,13 +90,10 @@ public class SidebarView extends VBox {
         this.getChildren().addAll(header, searchField, treeView);
     }
 
-    /**
-     * Thread-safe population of the tree.
-     */
     public void populate(MetadataService metaService) {
-        // Run on UI Thread to be safe / "Reliable"
         Platform.runLater(() -> {
             rootItem.getChildren().clear();
+            originalStructure.clear(); // Clear backup
 
             try {
                 List<String> schemas = metaService.getSchemas();
@@ -95,64 +101,80 @@ public class SidebarView extends VBox {
                 for (String schema : schemas) {
                     TreeItem<String> schemaItem = new TreeItem<>(schema, new FontIcon(Feather.FOLDER));
 
-                    // 1. Tables
-                    List<MetadataService.DbObject> tables = metaService.getTables(schema);
-                    if (!tables.isEmpty()) {
-                        TreeItem<String> tablesGroup = new TreeItem<>("Tables (" + tables.size() + ")", new FontIcon(Feather.LIST));
-                        for (MetadataService.DbObject table : tables) {
-                            FontIcon icon = new FontIcon(Feather.LAYOUT);
-                            icon.setIconColor(javafx.scene.paint.Color.web("#61afef")); // Light Blue for tables
-                            tablesGroup.getChildren().add(new TreeItem<>(table.name(), icon));
+                    // --- DYNAMIC PLUGIN LOADING ---
+                    for (SidebarPlugin plugin : plugins) {
+                        // Ask the plugin to create its node (e.g., "Tables")
+                        TreeItem<String> pluginNode = plugin.createNode(schema, metaService);
+
+                        // If the plugin has content, add it to the schema folder
+                        if (pluginNode != null) {
+                            schemaItem.getChildren().add(pluginNode);
                         }
-                        schemaItem.getChildren().add(tablesGroup);
                     }
 
-                    // 2. Procedures
-                    List<String> procs = metaService.getProcedures(schema);
-                    if (!procs.isEmpty()) {
-                        TreeItem<String> procGroup = new TreeItem<>("Procedures", new FontIcon(Feather.PLAY_CIRCLE));
-                        for (String proc : procs) {
-                            procGroup.getChildren().add(new TreeItem<>(proc, new FontIcon(Feather.TERMINAL)));
-                        }
-                        schemaItem.getChildren().add(procGroup);
-                    }
-
-                    // 3. Functions
-                    List<String> funcs = metaService.getFunctions(schema);
-                    if (!funcs.isEmpty()) {
-                        TreeItem<String> funcGroup = new TreeItem<>("Functions", new FontIcon(Feather.ACTIVITY));
-                        for (String func : funcs) {
-                            TreeItem<String> fItem = new TreeItem<>(func, new FontIcon(Feather.CODE));
-                            schemaItem.getChildren().add(fItem);
-                        }
-                        // If you prefer grouping functions separately, add to schemaItem like above
-                        // For now, let's group them to be clean:
-                        TreeItem<String> fGroup = new TreeItem<>("Functions", new FontIcon(Feather.ACTIVITY));
-                        for (String func : funcs) {
-                            fGroup.getChildren().add(new TreeItem<>(func, new FontIcon(Feather.CODE)));
-                        }
-                        schemaItem.getChildren().add(fGroup);
-                    }
-
-                    rootItem.getChildren().add(schemaItem);
+                    // Save to backup list
+                    originalStructure.add(schemaItem);
                 }
+
+                // Add backup items to the actual tree
+                rootItem.getChildren().setAll(originalStructure);
+
             } catch (Exception e) {
-                // Show error in the tree itself so user sees it
-                TreeItem<String> errorItem = new TreeItem<>("Error loading: " + e.getMessage(), new FontIcon(Feather.ALERT_TRIANGLE));
+                TreeItem<String> errorItem = new TreeItem<>("Error: " + e.getMessage(), new FontIcon(Feather.ALERT_TRIANGLE));
                 rootItem.getChildren().add(errorItem);
                 e.printStackTrace();
             }
         });
     }
 
+    public void setupSearch(LocalIndexService indexService) {
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            // IF SEARCH IS EMPTY -> RESTORE BACKUP
+            if (newVal == null || newVal.trim().isEmpty()) {
+                rootItem.getChildren().setAll(originalStructure);
+                return;
+            }
+
+            // IF SEARCH HAS TEXT -> QUERY INDEX
+            List<LocalIndexService.SearchResult> results = indexService.search(newVal);
+
+            rootItem.getChildren().clear();
+
+            if (results.isEmpty()) {
+                rootItem.getChildren().add(new TreeItem<>("No results found"));
+            } else {
+                TreeItem<String> searchRoot = new TreeItem<>("Search Results (" + results.size() + ")");
+                searchRoot.setExpanded(true);
+
+                for (var res : results) {
+                    // Choose icon based on type (simple switch for visual clarity)
+                    FontIcon icon = switch (res.type()) {
+                        case "TABLE" -> new FontIcon(Feather.LAYOUT);
+                        case "FUNCTION" -> new FontIcon(Feather.ACTIVITY);
+                        case "PROCEDURE" -> new FontIcon(Feather.PLAY_CIRCLE);
+                        default -> new FontIcon(Feather.CIRCLE);
+                    };
+
+                    String label = res.schema() + "." + res.name();
+                    TreeItem<String> item = new TreeItem<>(label, icon);
+                    searchRoot.getChildren().add(item);
+                }
+                rootItem.getChildren().add(searchRoot);
+            }
+        });
+    }
+
     private void collapseAll() {
-        for (TreeItem<?> child : rootItem.getChildren()) {
-            child.setExpanded(false);
+        if (rootItem != null && !rootItem.getChildren().isEmpty()) {
+            for (TreeItem<?> child : rootItem.getChildren()) {
+                child.setExpanded(false);
+            }
         }
     }
 
-    // Getter to hook up the Refresh button from the Main View if needed
     public Button getRefreshButton() {
-        return (Button) ((HBox)((HBox)getChildren().get(0)).getChildren().get(1)).getChildren().get(0);
+        HBox header = (HBox) getChildren().get(0);
+        HBox buttons = (HBox) header.getChildren().get(1);
+        return (Button) buttons.getChildren().get(0);
     }
 }

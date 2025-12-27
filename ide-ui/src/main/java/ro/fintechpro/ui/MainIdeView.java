@@ -12,12 +12,18 @@ import org.fxmisc.richtext.CodeArea;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.db.DataSourceManager;
+import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
+import ro.fintechpro.core.spi.SidebarPlugin;
 import ro.fintechpro.ui.ide.ResultTableBuilder;
 import ro.fintechpro.ui.ide.SidebarView;
 import ro.fintechpro.ui.ide.SqlSyntaxHighlighter;
+import ro.fintechpro.ui.plugins.FunctionPlugin;
+import ro.fintechpro.ui.plugins.TablePlugin;
+// import ro.fintechpro.ui.plugins.ProcedurePlugin; // Add this if you created it
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainIdeView {
@@ -25,12 +31,22 @@ public class MainIdeView {
     private final DataSourceManager dbManager = DataSourceManager.getInstance();
     private final MetadataService metaService = new MetadataService(dbManager);
     private final QueryExecutor queryExecutor = new QueryExecutor();
+    private final LocalIndexService indexService = new LocalIndexService();
 
-    private final SidebarView sidebar = new SidebarView();
+    // --- PLUGIN CONFIGURATION ---
+    // This is where you register new Sidebar components!
+    private final List<SidebarPlugin> availablePlugins = List.of(
+            new TablePlugin(),
+            new FunctionPlugin()
+            // new ProcedurePlugin()
+    );
+
+    // Inject plugins into Sidebar
+    private final SidebarView sidebar = new SidebarView(availablePlugins);
+
     private final CodeArea sqlEditor = new CodeArea();
     private final TableView<List<Object>> resultsTable = new TableView<>();
-    private final TextArea messageConsole = new TextArea(); // For messages like "Rows updated: 5"
-
+    private final TextArea messageConsole = new TextArea();
     private final ProgressBar progressBar = new ProgressBar();
     private final Label statusLabel = new Label("Ready");
 
@@ -52,17 +68,15 @@ public class MainIdeView {
         ToolBar toolbar = new ToolBar(runBtn, new Separator(), new Label("Limit: 500"));
 
         // 2. Editor
-//        sqlEditor.replaceText(0, 0, "SELECT * FROM public.users;");
-        // Add Line Numbers (Optional but professional)
+        // sqlEditor.replaceText(0, 0, "SELECT * FROM public.users;");
         sqlEditor.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(sqlEditor));
 
-        // Enable Syntax Highlighting
         SqlSyntaxHighlighter.enable(sqlEditor);
         sqlEditor.getStyleClass().add("styled-text-area");
 
-        // CodeArea needs a special wrapper to scroll properly
         VirtualizedScrollPane<CodeArea> editorScroll = new VirtualizedScrollPane<>(sqlEditor);
-        // 3. Results Area (TabPane to switch between Grid and Messages)
+
+        // 3. Results Area
         TabPane resultTabs = new TabPane();
         Tab gridTab = new Tab("Grid", resultsTable);
         gridTab.setClosable(false);
@@ -73,10 +87,9 @@ public class MainIdeView {
 
         resultTabs.getTabs().addAll(gridTab, msgTab);
 
-        // Split Pane (Editor on Top, Results on Bottom)
         SplitPane splitPane = new SplitPane(editorScroll, resultTabs);
         splitPane.setOrientation(Orientation.VERTICAL);
-        splitPane.setDividerPositions(0.6); // Editor takes 60% height
+        splitPane.setDividerPositions(0.6);
 
         VBox centerArea = new VBox(toolbar, splitPane);
         VBox.setVgrow(splitPane, Priority.ALWAYS);
@@ -99,7 +112,7 @@ public class MainIdeView {
     private void executeQuery() {
         String sql = sqlEditor.getSelectedText();
         if (sql == null || sql.trim().isEmpty()) {
-            sql = sqlEditor.getText(); // Run everything if nothing selected
+            sql = sqlEditor.getText();
         }
 
         if (sql.trim().isEmpty()) return;
@@ -110,20 +123,15 @@ public class MainIdeView {
 
         new Thread(() -> {
             try {
-                // Execute in Core
                 var result = queryExecutor.execute(finalSql);
 
                 Platform.runLater(() -> {
                     if (result.isResultSet()) {
-                        // Show Grid
                         ResultTableBuilder.populate(resultsTable, result);
                         messageConsole.setText(result.message());
-                        // Select Grid Tab
                         ((TabPane)resultsTable.getParent().getParent()).getSelectionModel().select(0);
                     } else {
-                        // Show Message only
                         messageConsole.setText(result.message());
-                        // Select Message Tab
                         ((TabPane)resultsTable.getParent().getParent()).getSelectionModel().select(1);
                     }
                     statusLabel.setText("Execution finished.");
@@ -136,7 +144,6 @@ public class MainIdeView {
                     statusLabel.setText("Execution failed.");
                     statusLabel.setStyle("-fx-text-fill: red;");
                     progressBar.setVisible(false);
-                    // Switch to message tab to see error
                     ((TabPane)resultsTable.getParent().getParent()).getSelectionModel().select(1);
                 });
             }
@@ -145,31 +152,40 @@ public class MainIdeView {
 
     private void runIntrospection() {
         progressBar.setVisible(true);
-        statusLabel.setText("Introspecting database structure...");
+        statusLabel.setText("Indexing database structure...");
 
         new Thread(() -> {
             try {
-                // Simulate a slight delay or heavy work so you see the bar
-                Thread.sleep(500);
+                // 1. Clear old index
+                indexService.clearIndex();
+                List<LocalIndexService.SearchResult> batch = new ArrayList<>();
+                List<String> schemas = metaService.getSchemas();
 
-                // Fetch data inside the background thread is tricky for UI updates
-                // Ideally, we fetch raw data here, then build TreeItems on UI thread.
-                // For simplicity, we delegate to Sidebar but wrap UI calls in runLater inside it?
-                // Actually, let's fetch here and update UI.
+                for (String schema : schemas) {
+                    // --- DYNAMIC INDEXING ---
+                    // Instead of hardcoding "getTables", we let each plugin provide its items
+                    for (SidebarPlugin plugin : availablePlugins) {
+                        List<LocalIndexService.SearchResult> items = plugin.getIndexItems(schema, metaService);
+                        batch.addAll(items);
+                    }
+                }
 
-                // Let's rely on Sidebar's populate method but be careful about UI threads.
-                // NOTE: In production, fetch Data Objects here, create TreeItems in Platform.runLater
+                // 2. Insert into H2
+                indexService.indexItems(batch);
 
+                // 3. Update UI
                 Platform.runLater(() -> {
                     sidebar.populate(metaService);
-                    statusLabel.setText("Introspection complete.");
+                    sidebar.setupSearch(indexService);
+
+                    statusLabel.setText("Introspection & Indexing complete. (" + batch.size() + " objects)");
                     progressBar.setVisible(false);
                 });
 
             } catch (Exception e) {
+                e.printStackTrace();
                 Platform.runLater(() -> {
-                    statusLabel.setText("Error loading structure: " + e.getMessage());
-                    statusLabel.setStyle("-fx-text-fill: -color-danger-fg;");
+                    statusLabel.setText("Error: " + e.getMessage());
                     progressBar.setVisible(false);
                 });
             }
