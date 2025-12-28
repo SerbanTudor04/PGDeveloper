@@ -43,7 +43,6 @@ public class TablePlugin implements SidebarPlugin {
 
     @Override
     public List<SearchResult> getIndexItems(String schema, MetadataService metaService) {
-        // ... (Keep existing implementation logic) ...
         return new ArrayList<>();
     }
 

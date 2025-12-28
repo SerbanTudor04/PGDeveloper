@@ -1,3 +1,4 @@
+// File: pgdeveloper/ide-ui/src/main/java/ro/fintechpro/ui/ide/SidebarView.java
 package ro.fintechpro.ui.ide;
 
 import atlantafx.base.theme.Styles;
@@ -8,7 +9,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color; // Import Color
+import javafx.scene.paint.Color;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.model.SidebarItem;
@@ -23,11 +24,11 @@ import java.util.function.Consumer;
 public class SidebarView extends VBox {
 
     private final TreeView<SidebarItem> treeView;
-    private Consumer<SidebarItem> onItemOpen;
-    private final TreeItem<String> rootItem;
+    private final TreeItem<SidebarItem> rootItem;
     private final TextField searchField;
     private final List<SidebarPlugin> plugins;
-    private final List<TreeItem<String>> originalStructure = new ArrayList<>();
+    private final List<TreeItem<SidebarItem>> originalStructure = new ArrayList<>();
+    private Consumer<SidebarItem> onItemOpen;
 
     public SidebarView(List<SidebarPlugin> plugins) {
         this.plugins = plugins;
@@ -36,54 +37,42 @@ public class SidebarView extends VBox {
         this.setPadding(new Insets(5));
         this.getStyleClass().add("sidebar-container");
 
-        // --- 1. Header ---
+        // Header
         Label title = new Label("Explorer");
         title.getStyleClass().add(Styles.TEXT_BOLD);
 
         Button refreshBtn = new Button(null, new FontIcon(Feather.REFRESH_CW));
         refreshBtn.getStyleClass().addAll(Styles.BUTTON_ICON, Styles.FLAT);
-        refreshBtn.setTooltip(new Tooltip("Reload Structure"));
 
         Button collapseBtn = new Button(null, new FontIcon(Feather.MINUS_SQUARE));
         collapseBtn.getStyleClass().addAll(Styles.BUTTON_ICON, Styles.FLAT);
-        collapseBtn.setTooltip(new Tooltip("Collapse All"));
         collapseBtn.setOnAction(e -> collapseAll());
 
         HBox header = new HBox(10, title, new HBox(refreshBtn, collapseBtn));
         HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS);
         ((HBox)header.getChildren().get(1)).setAlignment(Pos.CENTER_RIGHT);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(0, 5, 5, 5));
 
-        // --- 2. Search ---
+        // Search
         searchField = new TextField();
         searchField.setPromptText("Search objects...");
         searchField.getStyleClass().add(Styles.SMALL);
 
-        // --- 3. Tree ---
-        // Root Icon (Database)
+        // Tree
         FontIcon dbIcon = new FontIcon(Feather.DATABASE);
-        dbIcon.setIconColor(Color.web("#E06C75")); // Red/Pink
+        dbIcon.setIconColor(Color.web("#E06C75"));
+
+        // Root Item
         SidebarItem rootData = new SidebarItem("Database", SidebarItem.TYPE_ROOT, null, null);
-        TreeItem<SidebarItem> rootItem = new TreeItem<>(rootData);
+        rootItem = new TreeItem<>(rootData, dbIcon);
+        rootItem.setExpanded(true);
 
         treeView = new TreeView<>(rootItem);
         treeView.setShowRoot(true);
-
-        // Handle Double Click
-        treeView.setOnMouseClicked(e -> {
-            if (e.getClickCount() == 2) {
-                TreeItem<SidebarItem> selected = treeView.getSelectionModel().getSelectedItem();
-                if (selected != null && selected.getValue() != null && onItemOpen != null) {
-                    onItemOpen.accept(selected.getValue());
-                }
-            }
-        });
-
         treeView.getStyleClass().add(Styles.DENSE);
         VBox.setVgrow(treeView, Priority.ALWAYS);
 
-        // Simple Cell Factory
+        // --- FIX: Cell Factory ---
         treeView.setCellFactory(tv -> new TreeCell<>() {
             @Override
             protected void updateItem(SidebarItem item, boolean empty) {
@@ -92,9 +81,10 @@ public class SidebarView extends VBox {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    setText(item);
+                    // FIX: Use item.label() instead of passing the object directly
+                    setText(item.label());
                     setGraphic(getTreeItem().getGraphic());
-                    // Bold schemas or roots
+
                     if (getTreeItem().getParent() == rootItem) {
                         getStyleClass().add(Styles.TEXT_BOLD);
                     } else {
@@ -104,7 +94,21 @@ public class SidebarView extends VBox {
             }
         });
 
+        // Double Click Handler
+        treeView.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) {
+                TreeItem<SidebarItem> selected = treeView.getSelectionModel().getSelectedItem();
+                if (selected != null && selected.getValue() != null && onItemOpen != null) {
+                    onItemOpen.accept(selected.getValue());
+                }
+            }
+        });
+
         this.getChildren().addAll(header, searchField, treeView);
+    }
+
+    public void setOnItemOpen(Consumer<SidebarItem> listener) {
+        this.onItemOpen = listener;
     }
 
     public void populate(MetadataService metaService) {
@@ -116,13 +120,14 @@ public class SidebarView extends VBox {
                 List<String> schemas = metaService.getSchemas();
 
                 for (String schema : schemas) {
-                    // NEW: Schema Icon (Layers) + Gold Color
                     FontIcon schemaIcon = new FontIcon(Feather.LAYERS);
-                    schemaIcon.setIconColor(Color.web("#E5C07B")); // Gold
-                    TreeItem<String> schemaItem = new TreeItem<>(schema, schemaIcon);
+                    schemaIcon.setIconColor(Color.web("#E5C07B"));
+
+                    SidebarItem schemaData = new SidebarItem(schema, SidebarItem.TYPE_SCHEMA, schema, null);
+                    TreeItem<SidebarItem> schemaItem = new TreeItem<>(schemaData, schemaIcon);
 
                     for (SidebarPlugin plugin : plugins) {
-                        TreeItem<String> pluginNode = plugin.createNode(schema, metaService);
+                        TreeItem<SidebarItem> pluginNode = plugin.createNode(schema, metaService);
                         if (pluginNode != null) {
                             schemaItem.getChildren().add(pluginNode);
                         }
@@ -132,15 +137,9 @@ public class SidebarView extends VBox {
                 rootItem.getChildren().setAll(originalStructure);
 
             } catch (Exception e) {
-                TreeItem<String> errorItem = new TreeItem<>("Error: " + e.getMessage(), new FontIcon(Feather.ALERT_TRIANGLE));
-                rootItem.getChildren().add(errorItem);
                 e.printStackTrace();
             }
         });
-    }
-
-    public void setOnItemOpen(Consumer<SidebarItem> listener) {
-        this.onItemOpen = listener;
     }
 
     public void setupSearch(LocalIndexService indexService) {
@@ -154,33 +153,16 @@ public class SidebarView extends VBox {
             rootItem.getChildren().clear();
 
             if (results.isEmpty()) {
-                rootItem.getChildren().add(new TreeItem<>("No results found"));
+                rootItem.getChildren().add(new TreeItem<>(new SidebarItem("No results", "INFO", null, null)));
             } else {
-                TreeItem<String> searchRoot = new TreeItem<>("Search Results (" + results.size() + ")");
+                TreeItem<SidebarItem> searchRoot = new TreeItem<>(new SidebarItem("Results", "ROOT", null, null));
                 searchRoot.setExpanded(true);
 
                 for (var res : results) {
-                    FontIcon icon;
-                    // UPDATED: Icons for Search Results
-                    switch (res.type()) {
-                        case "TABLE" -> {
-                            icon = new FontIcon(Feather.LAYOUT);
-                            icon.setIconColor(Color.web("#61AFEF")); // Blue
-                        }
-                        case "FUNCTION" -> {
-                            icon = new FontIcon(Feather.PLAY_CIRCLE);
-                            icon.setIconColor(Color.web("#C678DD")); // Purple
-                        }
-                        case "PROCEDURE" -> {
-                            icon = new FontIcon(Feather.CPU);
-                            icon.setIconColor(Color.web("#C678DD")); // Purple
-                        }
-                        default -> icon = new FontIcon(Feather.CIRCLE);
-                    }
-
-                    String label = res.schema() + "." + res.name();
-                    TreeItem<String> item = new TreeItem<>(label, icon);
-                    searchRoot.getChildren().add(item);
+                    FontIcon icon = new FontIcon(Feather.CIRCLE);
+                    // Add logic for icons if needed
+                    SidebarItem itemData = new SidebarItem(res.schema() + "." + res.name(), res.type(), res.schema(), res.name());
+                    searchRoot.getChildren().add(new TreeItem<>(itemData, icon));
                 }
                 rootItem.getChildren().add(searchRoot);
             }
@@ -195,7 +177,7 @@ public class SidebarView extends VBox {
         }
     }
 
-    public void setOnRefresh(java.util.function.Consumer<Runnable> refreshAction) {
+    public void setOnRefresh(Consumer<Runnable> refreshAction) {
         HBox header = (HBox) getChildren().get(0);
         HBox buttons = (HBox) header.getChildren().get(1);
         Button refreshBtn = (Button) buttons.getChildren().get(0);

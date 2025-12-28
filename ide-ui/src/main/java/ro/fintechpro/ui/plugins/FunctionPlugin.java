@@ -11,6 +11,7 @@ import ro.fintechpro.core.service.LocalIndexService.SearchResult;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
 import ro.fintechpro.core.spi.SidebarPlugin;
+import ro.fintechpro.ui.ide.RoutineEditorTab; // IMPORT THIS
 
 import java.util.ArrayList;
 import java.util.List;
