@@ -5,26 +5,38 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.layout.BorderPane; // Changed from VBox to BorderPane
 import javafx.scene.layout.VBox;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.Stage;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
+import ro.fintechpro.ui.components.CustomTitleBar; // Import CustomTitleBar
 
 public class LoadingView {
 
     private final ProgressBar progressBar = new ProgressBar();
     private final Label statusLabel = new Label("Initializing...");
 
-    public Parent getView() {
-        VBox root = new VBox(20);
-        root.setAlignment(Pos.CENTER);
+    // UPDATED: Accept Stage parameter
+    public Parent getView(Stage stage) {
+        // Use BorderPane as root to hold TitleBar at Top and Content in Center
+        BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: -color-bg-default;");
-        root.setPrefSize(800, 600); // Match your window size
+        root.setPrefSize(800, 600);
+
+        // --- Title Bar ---
+        CustomTitleBar titleBar = new CustomTitleBar(stage, "PgDeveloper");
+        root.setTop(titleBar);
+
+        // --- Center Content ---
+        VBox content = new VBox(20);
+        content.setAlignment(Pos.CENTER);
 
         // 1. Icon / Logo
         FontIcon logo = new FontIcon(Feather.DATABASE);
         logo.setIconSize(64);
-        logo.setIconColor(javafx.scene.paint.Color.web("#61afef")); // Branding Blue
+        logo.setIconColor(javafx.scene.paint.Color.web("#61afef"));
 
         // 2. Title
         Label title = new Label("PgDeveloper");
@@ -37,12 +49,13 @@ public class LoadingView {
         statusLabel.getStyleClass().add(Styles.TEXT_MUTED);
         statusLabel.setTextAlignment(TextAlignment.CENTER);
 
-        root.getChildren().addAll(logo, title, progressBar, statusLabel);
+        content.getChildren().addAll(logo, title, progressBar, statusLabel);
+        root.setCenter(content);
+
         return root;
     }
 
     public void updateMessage(String message) {
-        // Ensure UI updates happen on the FX thread
         javafx.application.Platform.runLater(() -> statusLabel.setText(message));
     }
 }

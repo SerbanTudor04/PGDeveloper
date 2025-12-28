@@ -12,6 +12,7 @@ import org.kordamp.ikonli.feather.Feather;
 import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.model.ConnectionProfile;
 import ro.fintechpro.core.service.ConfigService;
+import ro.fintechpro.ui.components.CustomTitleBar; // Import CustomTitleBar
 
 public class ConnectionManagerView {
 
@@ -24,8 +25,12 @@ public class ConnectionManagerView {
         this.onConnectSuccess = onConnectSuccess;
     }
 
-    public Parent getView() {
+    // UPDATED: Accept Stage parameter
+    public Parent getView(Stage stage) {
         list.getItems().setAll(configService.loadConnections());
+
+        // --- 0. Custom Title Bar ---
+        CustomTitleBar titleBar = new CustomTitleBar(stage, "Connection Manager");
 
         // --- 1. Toolbar ---
         Button addBtn = new Button("New", new FontIcon(Feather.PLUS));
@@ -55,18 +60,20 @@ public class ConnectionManagerView {
         connectBtn.setGraphic(new FontIcon(Feather.DATABASE));
         connectBtn.getStyleClass().addAll(Styles.SUCCESS, Styles.LARGE);
         connectBtn.setMaxWidth(Double.MAX_VALUE);
-
-        // FIX: We don't pass 'stage' here because it doesn't exist yet.
-        // We will retrieve it inside handleConnect from the button itself.
         connectBtn.setOnAction(e -> handleConnect(connectBtn));
 
         // --- 4. Layout ---
         BorderPane root = new BorderPane();
 
-        VBox topContainer = new VBox(new Label("Database Connections"), toolbar);
-        topContainer.getStyleClass().add(Styles.BG_DEFAULT);
-        ((Label) topContainer.getChildren().get(0)).getStyleClass().add(Styles.TITLE_4);
-        topContainer.setPadding(new Insets(10, 10, 0, 10));
+        // Wrap TitleBar and Content Header in a VBox
+        VBox headerContent = new VBox(new Label("Database Connections"), toolbar);
+        headerContent.getStyleClass().add(Styles.BG_DEFAULT);
+        ((Label) headerContent.getChildren().get(0)).getStyleClass().add(Styles.TITLE_4);
+        headerContent.setPadding(new Insets(10, 10, 0, 10));
+
+        // The Top of the BorderPane now holds the TitleBar AND the Header
+        VBox topContainer = new VBox(titleBar, headerContent);
+        topContainer.setStyle("-fx-background-color: -color-bg-default;");
 
         VBox centerContainer = new VBox(5, list);
         centerContainer.setPadding(new Insets(10));
@@ -81,8 +88,6 @@ public class ConnectionManagerView {
 
         return root;
     }
-
-    // --- LOGIC ---
 
     private void deleteSelected() {
         ConnectionProfile selected = list.getSelectionModel().getSelectedItem();
@@ -105,7 +110,6 @@ public class ConnectionManagerView {
             return;
         }
 
-        // Retrieve the stage from the button dynamically
         Stage stage = (Stage) btn.getScene().getWindow();
 
         if (selected.getPassword() != null && !selected.getPassword().isEmpty()) {
@@ -148,7 +152,6 @@ public class ConnectionManagerView {
                     sourceButton.setGraphic(new FontIcon(Feather.DATABASE));
 
                     if (success) {
-                        // FIX: Delegate transition to the Launcher via callback
                         if (onConnectSuccess != null) onConnectSuccess.run();
                     } else {
                         showAlert("Connection Failed", "Could not reach database.");
