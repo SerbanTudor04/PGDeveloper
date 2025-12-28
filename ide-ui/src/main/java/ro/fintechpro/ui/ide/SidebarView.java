@@ -8,6 +8,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color; // Import Color
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.service.LocalIndexService;
@@ -22,11 +23,7 @@ public class SidebarView extends VBox {
     private final TreeView<String> treeView;
     private final TreeItem<String> rootItem;
     private final TextField searchField;
-
-    // Injected Plugins
     private final List<SidebarPlugin> plugins;
-
-    // Backup list to restore tree after clearing search
     private final List<TreeItem<String>> originalStructure = new ArrayList<>();
 
     public SidebarView(List<SidebarPlugin> plugins) {
@@ -36,7 +33,7 @@ public class SidebarView extends VBox {
         this.setPadding(new Insets(5));
         this.getStyleClass().add("sidebar-container");
 
-        // --- 1. Header (Title + Actions) ---
+        // --- 1. Header ---
         Label title = new Label("Explorer");
         title.getStyleClass().add(Styles.TEXT_BOLD);
 
@@ -55,13 +52,16 @@ public class SidebarView extends VBox {
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(0, 5, 5, 5));
 
-        // --- 2. Search Bar ---
+        // --- 2. Search ---
         searchField = new TextField();
         searchField.setPromptText("Search objects...");
         searchField.getStyleClass().add(Styles.SMALL);
 
-        // --- 3. The Tree ---
-        rootItem = new TreeItem<>("Database", new FontIcon(Feather.DATABASE));
+        // --- 3. Tree ---
+        // Root Icon (Database)
+        FontIcon dbIcon = new FontIcon(Feather.DATABASE);
+        dbIcon.setIconColor(Color.web("#E06C75")); // Red/Pink
+        rootItem = new TreeItem<>("Database", dbIcon);
         rootItem.setExpanded(true);
 
         treeView = new TreeView<>(rootItem);
@@ -69,7 +69,7 @@ public class SidebarView extends VBox {
         treeView.getStyleClass().add(Styles.DENSE);
         VBox.setVgrow(treeView, Priority.ALWAYS);
 
-        // Custom Cell Factory
+        // Simple Cell Factory
         treeView.setCellFactory(tv -> new TreeCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -80,8 +80,11 @@ public class SidebarView extends VBox {
                 } else {
                     setText(item);
                     setGraphic(getTreeItem().getGraphic());
-                    if (getTreeItem().getParent() == null) {
+                    // Bold schemas or roots
+                    if (getTreeItem().getParent() == rootItem) {
                         getStyleClass().add(Styles.TEXT_BOLD);
+                    } else {
+                        getStyleClass().remove(Styles.TEXT_BOLD);
                     }
                 }
             }
@@ -93,30 +96,25 @@ public class SidebarView extends VBox {
     public void populate(MetadataService metaService) {
         Platform.runLater(() -> {
             rootItem.getChildren().clear();
-            originalStructure.clear(); // Clear backup
+            originalStructure.clear();
 
             try {
                 List<String> schemas = metaService.getSchemas();
 
                 for (String schema : schemas) {
-                    TreeItem<String> schemaItem = new TreeItem<>(schema, new FontIcon(Feather.FOLDER));
+                    // NEW: Schema Icon (Layers) + Gold Color
+                    FontIcon schemaIcon = new FontIcon(Feather.LAYERS);
+                    schemaIcon.setIconColor(Color.web("#E5C07B")); // Gold
+                    TreeItem<String> schemaItem = new TreeItem<>(schema, schemaIcon);
 
-                    // --- DYNAMIC PLUGIN LOADING ---
                     for (SidebarPlugin plugin : plugins) {
-                        // Ask the plugin to create its node (e.g., "Tables")
                         TreeItem<String> pluginNode = plugin.createNode(schema, metaService);
-
-                        // If the plugin has content, add it to the schema folder
                         if (pluginNode != null) {
                             schemaItem.getChildren().add(pluginNode);
                         }
                     }
-
-                    // Save to backup list
                     originalStructure.add(schemaItem);
                 }
-
-                // Add backup items to the actual tree
                 rootItem.getChildren().setAll(originalStructure);
 
             } catch (Exception e) {
@@ -129,15 +127,12 @@ public class SidebarView extends VBox {
 
     public void setupSearch(LocalIndexService indexService) {
         searchField.textProperty().addListener((obs, oldVal, newVal) -> {
-            // IF SEARCH IS EMPTY -> RESTORE BACKUP
             if (newVal == null || newVal.trim().isEmpty()) {
                 rootItem.getChildren().setAll(originalStructure);
                 return;
             }
 
-            // IF SEARCH HAS TEXT -> QUERY INDEX
             List<LocalIndexService.SearchResult> results = indexService.search(newVal);
-
             rootItem.getChildren().clear();
 
             if (results.isEmpty()) {
@@ -147,13 +142,23 @@ public class SidebarView extends VBox {
                 searchRoot.setExpanded(true);
 
                 for (var res : results) {
-                    // Choose icon based on type (simple switch for visual clarity)
-                    FontIcon icon = switch (res.type()) {
-                        case "TABLE" -> new FontIcon(Feather.LAYOUT);
-                        case "FUNCTION" -> new FontIcon(Feather.ACTIVITY);
-                        case "PROCEDURE" -> new FontIcon(Feather.PLAY_CIRCLE);
-                        default -> new FontIcon(Feather.CIRCLE);
-                    };
+                    FontIcon icon;
+                    // UPDATED: Icons for Search Results
+                    switch (res.type()) {
+                        case "TABLE" -> {
+                            icon = new FontIcon(Feather.LAYOUT);
+                            icon.setIconColor(Color.web("#61AFEF")); // Blue
+                        }
+                        case "FUNCTION" -> {
+                            icon = new FontIcon(Feather.PLAY_CIRCLE);
+                            icon.setIconColor(Color.web("#C678DD")); // Purple
+                        }
+                        case "PROCEDURE" -> {
+                            icon = new FontIcon(Feather.CPU);
+                            icon.setIconColor(Color.web("#C678DD")); // Purple
+                        }
+                        default -> icon = new FontIcon(Feather.CIRCLE);
+                    }
 
                     String label = res.schema() + "." + res.name();
                     TreeItem<String> item = new TreeItem<>(label, icon);
@@ -172,37 +177,18 @@ public class SidebarView extends VBox {
         }
     }
 
-    public Button getRefreshButton() {
-        HBox header = (HBox) getChildren().get(0);
-        HBox buttons = (HBox) header.getChildren().get(1);
-        return (Button) buttons.getChildren().get(0);
-    }
-
-    /**
-     * Registers the action to run when the refresh button is clicked.
-     * The Sidebar handles the visual state (Spinner/Disable), and the consumer
-     * handles the actual logic.
-     *
-     * @param refreshAction A Consumer that accepts a "Reset Callback" (Runnable).
-     * The Main View must call this Runnable when finished.
-     */
     public void setOnRefresh(java.util.function.Consumer<Runnable> refreshAction) {
-        // We can reuse the helper method or get it directly
         HBox header = (HBox) getChildren().get(0);
         HBox buttons = (HBox) header.getChildren().get(1);
         Button refreshBtn = (Button) buttons.getChildren().get(0);
 
         refreshBtn.setOnAction(e -> {
-            // 1. Visual Feedback: Change Icon to Spinner & Disable
             var originalIcon = refreshBtn.getGraphic();
             ProgressIndicator spinner = new ProgressIndicator();
             spinner.setMaxSize(16, 16);
             refreshBtn.setGraphic(spinner);
             refreshBtn.setDisable(true);
 
-            // 2. Trigger the external action
-            // We pass a lambda () -> { ... } that restores the button.
-            // The MainIdeView will call this lambda when it's done.
             refreshAction.accept(() -> {
                 refreshBtn.setGraphic(originalIcon);
                 refreshBtn.setDisable(false);

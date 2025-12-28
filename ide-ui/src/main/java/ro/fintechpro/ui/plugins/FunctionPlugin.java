@@ -1,6 +1,7 @@
 package ro.fintechpro.ui.plugins;
 
 import javafx.scene.control.TreeItem;
+import javafx.scene.paint.Color;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.service.LocalIndexService.SearchResult;
@@ -18,9 +19,17 @@ public class FunctionPlugin implements SidebarPlugin {
             var funcs = metaService.getFunctions(schema);
             if (funcs.isEmpty()) return null;
 
-            TreeItem<String> root = new TreeItem<>("Functions", new FontIcon(Feather.ACTIVITY));
+            // Root: Box (Package)
+            FontIcon rootIcon = new FontIcon(Feather.BOX);
+            rootIcon.setIconColor(Color.web("#C678DD")); // Purple
+
+            TreeItem<String> root = new TreeItem<>("Functions", rootIcon);
+
             for (String f : funcs) {
-                root.getChildren().add(new TreeItem<>(f, new FontIcon(Feather.CODE)));
+                // Item: Play Circle
+                FontIcon icon = new FontIcon(Feather.PLAY_CIRCLE);
+                icon.setIconColor(Color.web("#C678DD")); // Purple
+                root.getChildren().add(new TreeItem<>(f, icon));
             }
             return root;
         } catch (Exception e) { return null; }

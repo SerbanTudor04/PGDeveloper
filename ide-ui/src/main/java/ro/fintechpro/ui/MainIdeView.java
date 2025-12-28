@@ -23,6 +23,7 @@ import ro.fintechpro.ui.ide.ResultTableBuilder;
 import ro.fintechpro.ui.ide.SidebarView;
 import ro.fintechpro.ui.ide.SqlConsoleTab;
 import ro.fintechpro.ui.plugins.FunctionPlugin;
+import ro.fintechpro.ui.plugins.ProcedurePlugin;
 import ro.fintechpro.ui.plugins.TablePlugin;
 
 import java.util.ArrayList;
@@ -39,7 +40,11 @@ public class MainIdeView {
     private final WorkspaceService workspaceService = new WorkspaceService();
 
     // UI Components
-    private final List<SidebarPlugin> plugins = List.of(new TablePlugin(), new FunctionPlugin());
+    private final List<SidebarPlugin> plugins = List.of(
+            new TablePlugin(),
+            new FunctionPlugin(),
+            new ProcedurePlugin()
+    );
     private final SidebarView sidebar = new SidebarView(plugins);
     private TabPane editorTabPane;
     private final TableView<List<Object>> resultsTable = new TableView<>();

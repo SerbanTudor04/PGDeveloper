@@ -19,11 +19,16 @@ public class TablePlugin implements SidebarPlugin {
             var tables = metaService.getTables(schema);
             if (tables.isEmpty()) return null;
 
-            TreeItem<String> root = new TreeItem<>("Tables (" + tables.size() + ")", new FontIcon(Feather.LIST));
+            // Root: GRID icon (Visualizes a collection of data grids)
+            FontIcon rootIcon = new FontIcon(Feather.GRID);
+            rootIcon.setIconColor(Color.web("#61AFEF")); // Blue
+
+            TreeItem<String> root = new TreeItem<>("Tables (" + tables.size() + ")", rootIcon);
 
             for (var t : tables) {
+                // Item: LAYOUT icon (Visualizes the structure of a single table)
                 FontIcon icon = new FontIcon(Feather.LAYOUT);
-                icon.setIconColor(Color.web("#61afef")); // Blue
+                icon.setIconColor(Color.web("#61AFEF")); // Blue
                 root.getChildren().add(new TreeItem<>(t.name(), icon));
             }
             return root;
