@@ -71,7 +71,8 @@ public class IdeApp extends Application {
             Platform.runLater(() -> {
                 Stage mainStage = new Stage();
                 mainStage.setTitle("PgDeveloper"); // <--- MUST BE SET FIRST
-                mainStage.initStyle(javafx.stage.StageStyle.DECORATED);
+//                mainStage.initStyle(javafx.stage.StageStyle.DECORATED);
+                mainStage.initStyle(javafx.stage.StageStyle.UNIFIED);
                 // -------------------------------------
 
                 Scene scene = new Scene(readyIde.getView(mainStage), 1200, 800);
