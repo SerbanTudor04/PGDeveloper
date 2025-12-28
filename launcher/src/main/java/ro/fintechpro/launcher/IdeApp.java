@@ -11,6 +11,7 @@ import atlantafx.base.theme.NordDark;
 import ro.fintechpro.ui.ConnectionManagerView;
 import ro.fintechpro.ui.LoadingView;
 import ro.fintechpro.ui.MainIdeView;
+import ro.fintechpro.ui.util.MacWindowStyler;
 import ro.fintechpro.ui.util.ResizeHelper;
 
 public class IdeApp extends Application {
@@ -70,14 +71,29 @@ public class IdeApp extends Application {
             Platform.runLater(() -> {
                 // 1. Create a NEW Stage
                 Stage mainStage = new Stage();
-                mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+//                String os = System.getProperty("os.name").toLowerCase();
+//                mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+                mainStage.initStyle(javafx.stage.StageStyle.DECORATED);
+//                if (os.contains("mac")) {
+//                    // Mac: Native "Unified" look (Native traffic lights, content flows under them)
+//                    mainStage.initStyle(javafx.stage.StageStyle.UNIFIED);
+//                } else {
+//                    // Windows/Linux: Completely custom (No native frame)
+//                    mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+//                }
 
                 // 2. Create the Scene
                 Scene scene = new Scene(readyIde.getView(mainStage), 1200, 800);
 
                 // 3. SET THE SCENE FIRST <--- This must happen before ResizeHelper
                 mainStage.setScene(scene);
+                MacWindowStyler.makeTitleBarTransparent(mainStage);
 
+                // 3. Add ResizeHelper ONLY for Windows (Mac uses native resizing now)
+                if (!System.getProperty("os.name").toLowerCase().contains("mac")) {
+                    mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED); // Switch back for Windows
+                    ResizeHelper.addResizeListener(mainStage);
+                }
                 // 4. NOW Add the resize helper
                 ResizeHelper.addResizeListener(mainStage);
 

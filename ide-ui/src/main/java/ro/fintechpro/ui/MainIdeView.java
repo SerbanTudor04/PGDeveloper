@@ -127,7 +127,7 @@ public class MainIdeView {
         menuBar.setUseSystemMenuBar(false);
         // COMBINE TitleBar and MenuBar
         VBox topContainer = new VBox(titleBar, menuBar);
-
+        topContainer.setStyle("-fx-background-color: -color-bg-default;");
         BorderPane root = new BorderPane();
         if (getClass().getResource("/app-main.css") != null) {
             root.getStylesheets().add(getClass().getResource("/app-main.css").toExternalForm());
