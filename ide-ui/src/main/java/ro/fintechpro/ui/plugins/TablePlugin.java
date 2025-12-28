@@ -24,15 +24,17 @@ public class TablePlugin implements SidebarPlugin {
             var tables = metaService.getTables(schema);
             if (tables.isEmpty()) return null;
 
+            // Root Icon
             FontIcon rootIcon = new FontIcon(Feather.GRID);
-            rootIcon.setStyle("-fx-icon-color: #5263e3;");
+            rootIcon.setIconColor(Color.web("#5263e3")); // Blue Nuance
 
             SidebarItem rootData = new SidebarItem("Tables (" + tables.size() + ")", SidebarItem.TYPE_FOLDER, schema, null);
             TreeItem<SidebarItem> root = new TreeItem<>(rootData, rootIcon);
 
             for (var t : tables) {
+                // Item Icon
                 FontIcon icon = new FontIcon(Feather.LAYOUT);
-                rootIcon.setStyle("-fx-icon-color: #5263e3;");
+                icon.setIconColor(Color.web("#5263e3")); // FIX: Apply color to the item icon
 
                 SidebarItem itemData = new SidebarItem(t.name(), SidebarItem.TYPE_TABLE, schema, t.name());
                 root.getChildren().add(new TreeItem<>(itemData, icon));

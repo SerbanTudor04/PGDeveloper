@@ -3,19 +3,23 @@
 .styled-text-area {
     -fx-font-family: "Courier New", "Consolas", "Monospaced";
     -fx-font-size: 14px;
-    -fx-background-color: #FFFFFF; /* White Background */
-    -fx-fill: #000000; /* Default Text Black */
+    -fx-background-color: #FFFFFF;
+    -fx-fill: #000000;
 }
 
-/* Ensure the content area background is also white */
 .styled-text-area .content {
     -fx-background-color: #FFFFFF;
 }
 
-/* Selection Color (Standard Blue selection) */
+/* Blue Nuance Selection Highlight */
 .styled-text-area .selection {
-    -fx-fill: #FFFFFF;
-    -fx-background-color: #3399FF;
+    -fx-fill: #000000; /* Keep text black when selected */
+    -fx-background-color: #ADD6FF; /* Soft Blue Highlight */
+}
+
+/* Current Line Highlight (Optional, subtle blue tint) */
+.styled-text-area .current-paragraph {
+    -fx-background-color: #F0F8FF;
 }
 
 .keyword {
@@ -42,15 +46,14 @@
 }
 
 .semicolon {
-    -fx-fill: #000000; /* Black */
+    -fx-fill: #000000;
     -fx-font-weight: bold;
 }
 
 .paren {
-    -fx-fill: #000000; /* Black */
+    -fx-fill: #000000;
 }
 
-/* Default text fallback */
 .text {
     -fx-fill: #000000;
 }

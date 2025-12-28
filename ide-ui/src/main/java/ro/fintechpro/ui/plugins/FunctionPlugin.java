@@ -11,7 +11,7 @@ import ro.fintechpro.core.service.LocalIndexService.SearchResult;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
 import ro.fintechpro.core.spi.SidebarPlugin;
-import ro.fintechpro.ui.ide.RoutineEditorTab; // IMPORT THIS
+import ro.fintechpro.ui.ide.RoutineEditorTab;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +25,14 @@ public class FunctionPlugin implements SidebarPlugin {
             if (funcs.isEmpty()) return null;
 
             FontIcon rootIcon = new FontIcon(Feather.BOX);
-            rootIcon.setStyle("-fx-icon-color: #C678DD;");
+            rootIcon.setIconColor(Color.web("#C678DD")); // Purple
 
             SidebarItem rootData = new SidebarItem("Functions", SidebarItem.TYPE_FOLDER, schema, null);
             TreeItem<SidebarItem> root = new TreeItem<>(rootData, rootIcon);
 
             for (String f : funcs) {
                 FontIcon icon = new FontIcon(Feather.PLAY_CIRCLE);
-                rootIcon.setStyle("-fx-icon-color: #C678DD;");
+                icon.setIconColor(Color.web("#C678DD")); // FIX: Apply color to item icon
 
                 SidebarItem itemData = new SidebarItem(f, SidebarItem.TYPE_FUNCTION, schema, f);
                 root.getChildren().add(new TreeItem<>(itemData, icon));

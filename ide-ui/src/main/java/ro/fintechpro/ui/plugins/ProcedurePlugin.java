@@ -1,3 +1,4 @@
+// File: pgdeveloper/ide-ui/src/main/java/ro/fintechpro/ui/plugins/ProcedurePlugin.java
 package ro.fintechpro.ui.plugins;
 
 import javafx.scene.control.Tab;
@@ -23,18 +24,17 @@ public class ProcedurePlugin implements SidebarPlugin {
             var procs = metaService.getProcedures(schema);
             if (procs.isEmpty()) return null;
 
-            // Root: CPU Icon (Processing)
+            // Root: CPU Icon
             FontIcon rootIcon = new FontIcon(Feather.CPU);
-//            rootIcon.setIconColor(Color.web("#C678DD")); // Purple (Logic)
-            rootIcon.setStyle("-fx-icon-color: #78b5dd;");
+            rootIcon.setIconColor(Color.web("#C678DD")); // Purple
 
             SidebarItem rootData = new SidebarItem("Procedures", SidebarItem.TYPE_FOLDER, schema, null);
             TreeItem<SidebarItem> root = new TreeItem<>(rootData, rootIcon);
 
             for (String p : procs) {
-                // Item: Settings/Gear Icon
+                // Item: Settings Icon
                 FontIcon icon = new FontIcon(Feather.SETTINGS);
-                icon.setIconColor(Color.web("#C678DD")); // Purple
+                icon.setIconColor(Color.web("#C678DD")); // FIX: Apply color to item icon
 
                 SidebarItem itemData = new SidebarItem(p, SidebarItem.TYPE_PROCEDURE, schema, p);
                 root.getChildren().add(new TreeItem<>(itemData, icon));
@@ -60,7 +60,6 @@ public class ProcedurePlugin implements SidebarPlugin {
 
     @Override
     public Tab createTab(SidebarItem item, MetadataService metaService, QueryExecutor queryExecutor) {
-        // Reuse RoutineEditorTab for Procedures as well
         if (SidebarItem.TYPE_PROCEDURE.equals(item.type())) {
             return new RoutineEditorTab(item.schema(), item.name(), metaService, queryExecutor);
         }

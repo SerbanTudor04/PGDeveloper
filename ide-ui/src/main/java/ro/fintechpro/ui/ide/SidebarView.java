@@ -1,4 +1,3 @@
-// File: pgdeveloper/ide-ui/src/main/java/ro/fintechpro/ui/ide/SidebarView.java
 package ro.fintechpro.ui.ide;
 
 import atlantafx.base.theme.Styles;
@@ -9,7 +8,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
+import javafx.scene.paint.Color; // Import Color
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.model.SidebarItem;
@@ -37,15 +36,17 @@ public class SidebarView extends VBox {
         this.setPadding(new Insets(5));
         this.getStyleClass().add("sidebar-container");
 
-        // Header
+        // --- 1. Header ---
         Label title = new Label("Explorer");
         title.getStyleClass().add(Styles.TEXT_BOLD);
 
         Button refreshBtn = new Button(null, new FontIcon(Feather.REFRESH_CW));
         refreshBtn.getStyleClass().addAll(Styles.BUTTON_ICON, Styles.FLAT);
+        refreshBtn.setTooltip(new Tooltip("Reload Structure"));
 
         Button collapseBtn = new Button(null, new FontIcon(Feather.MINUS_SQUARE));
         collapseBtn.getStyleClass().addAll(Styles.BUTTON_ICON, Styles.FLAT);
+        collapseBtn.setTooltip(new Tooltip("Collapse All"));
         collapseBtn.setOnAction(e -> collapseAll());
 
         HBox header = new HBox(10, title, new HBox(refreshBtn, collapseBtn));
@@ -53,16 +54,16 @@ public class SidebarView extends VBox {
         ((HBox)header.getChildren().get(1)).setAlignment(Pos.CENTER_RIGHT);
         header.setAlignment(Pos.CENTER_LEFT);
 
-        // Search
+        // --- 2. Search ---
         searchField = new TextField();
         searchField.setPromptText("Search objects...");
         searchField.getStyleClass().add(Styles.SMALL);
 
-        // Tree
+        // --- 3. Tree ---
         FontIcon dbIcon = new FontIcon(Feather.DATABASE);
-        dbIcon.setStyle("-fx-icon-color: #E06C75;");
+        // FIX: Use setIconColor instead of setStyle
+        dbIcon.setIconColor(Color.web("#E06C75")); // Red/Pink
 
-        // Root Item
         SidebarItem rootData = new SidebarItem("Database", SidebarItem.TYPE_ROOT, null, null);
         rootItem = new TreeItem<>(rootData, dbIcon);
         rootItem.setExpanded(true);
@@ -72,7 +73,7 @@ public class SidebarView extends VBox {
         treeView.getStyleClass().add(Styles.DENSE);
         VBox.setVgrow(treeView, Priority.ALWAYS);
 
-        // --- FIX: Cell Factory ---
+        // Cell Factory
         treeView.setCellFactory(tv -> new TreeCell<>() {
             @Override
             protected void updateItem(SidebarItem item, boolean empty) {
@@ -81,7 +82,6 @@ public class SidebarView extends VBox {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    // FIX: Use item.label() instead of passing the object directly
                     setText(item.label());
                     setGraphic(getTreeItem().getGraphic());
 
@@ -121,7 +121,8 @@ public class SidebarView extends VBox {
 
                 for (String schema : schemas) {
                     FontIcon schemaIcon = new FontIcon(Feather.LAYERS);
-                    schemaIcon.setStyle("-fx-icon-color: #E5C07B;");
+                    // FIX: Use setIconColor for Schemas (Gold)
+                    schemaIcon.setIconColor(Color.web("#E5C07B"));
 
                     SidebarItem schemaData = new SidebarItem(schema, SidebarItem.TYPE_SCHEMA, schema, null);
                     TreeItem<SidebarItem> schemaItem = new TreeItem<>(schemaData, schemaIcon);
@@ -153,29 +154,37 @@ public class SidebarView extends VBox {
             rootItem.getChildren().clear();
 
             if (results.isEmpty()) {
-                rootItem.getChildren().add(new TreeItem<>(new SidebarItem("No results", "INFO", null, null)));
+                FontIcon infoIcon = new FontIcon(Feather.INFO);
+                infoIcon.setIconColor(Color.GRAY);
+                rootItem.getChildren().add(new TreeItem<>(new SidebarItem("No results", "INFO", null, null), infoIcon));
             } else {
-                TreeItem<SidebarItem> searchRoot = new TreeItem<>(new SidebarItem("Results", "ROOT", null, null));
+                FontIcon searchIcon = new FontIcon(Feather.SEARCH);
+                searchIcon.setIconColor(Color.web("#E06C75"));
+                TreeItem<SidebarItem> searchRoot = new TreeItem<>(new SidebarItem("Results", "ROOT", null, null), searchIcon);
                 searchRoot.setExpanded(true);
 
                 for (var res : results) {
                     FontIcon icon;
+                    // FIX: Use setIconColor for Search Results
                     switch (res.type()) {
                         case "TABLE" -> {
                             icon = new FontIcon(Feather.LAYOUT);
-                            icon.setStyle("-fx-icon-color: #5263e3;"); // Blue
+                            icon.setIconColor(Color.web("#5263e3")); // Blue
                         }
                         case "FUNCTION" -> {
                             icon = new FontIcon(Feather.PLAY_CIRCLE);
-                            icon.setStyle("-fx-icon-color: #C678DD;"); // Purple
+                            icon.setIconColor(Color.web("#C678DD")); // Purple
                         }
                         case "PROCEDURE" -> {
                             icon = new FontIcon(Feather.CPU);
-                            icon.setStyle("-fx-icon-color: #78b5dd;"); // Purple
+                            icon.setIconColor(Color.web("#C678DD")); // Purple
                         }
-                        default -> icon = new FontIcon(Feather.CIRCLE);
+                        default -> {
+                            icon = new FontIcon(Feather.CIRCLE);
+                            icon.setIconColor(Color.GRAY);
+                        }
                     }
-                    // Add logic for icons if needed
+
                     SidebarItem itemData = new SidebarItem(res.schema() + "." + res.name(), res.type(), res.schema(), res.name());
                     searchRoot.getChildren().add(new TreeItem<>(itemData, icon));
                 }
