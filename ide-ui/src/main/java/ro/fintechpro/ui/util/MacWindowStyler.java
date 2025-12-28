@@ -11,12 +11,11 @@ import java.util.Map;
 public class MacWindowStyler {
 
     public interface Cocoa extends Library {
+        // Map all these java method names to the single native "objc_msgSend" function
         Map<String, Object> OPTIONS = Map.of(
                 Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (library, method) -> {
                     String name = method.getName();
-                    if (name.equals("objc_msgSend_long") ||
-                            name.equals("objc_msgSend_bool") ||
-                            name.equals("objc_msgSend_atIndex")) {
+                    if (name.startsWith("objc_msgSend")) {
                         return "objc_msgSend";
                     }
                     return name;
@@ -30,9 +29,20 @@ public class MacWindowStyler {
         Pointer objc_getClass(String className);
         Pointer sel_registerName(String selectorName);
 
+        // --- TYPED SIGNATURES (Critical for Apple Silicon) ---
+        // Generic (careful with primitives here)
         Pointer objc_msgSend(Pointer receiver, Pointer selector, Object... args);
+
+        // For getting the current style (returns long)
         long objc_msgSend_long(Pointer receiver, Pointer selector, Object... args);
-        boolean objc_msgSend_bool(Pointer receiver, Pointer selector, Object... args);
+
+        // For SETTING the style (returns void, takes long) - FIXES THE BUG
+        void objc_msgSend_v_long(Pointer receiver, Pointer selector, long arg1);
+
+        // For setting boolean properties (setTitlebarAppearsTransparent)
+        void objc_msgSend_v_bool(Pointer receiver, Pointer selector, boolean arg1);
+
+        // For array access (takes long index)
         Pointer objc_msgSend_atIndex(Pointer receiver, Pointer selector, long index);
     }
 
@@ -40,10 +50,11 @@ public class MacWindowStyler {
         String os = System.getProperty("os.name").toLowerCase();
         if (!os.contains("mac")) return;
 
-        if (!stage.isShowing()) {
-            stage.setOnShown(e -> applyMacStyle(stage));
-        } else {
+        // Apply immediately if showing, otherwise wait
+        if (stage.isShowing()) {
             applyMacStyle(stage);
+        } else {
+            stage.setOnShown(e -> applyMacStyle(stage));
         }
     }
 
@@ -51,7 +62,10 @@ public class MacWindowStyler {
         Cocoa cocoa = Cocoa.INSTANCE;
 
         Pointer nsWindow = getWindowPointer(stage.getTitle());
-        if (nsWindow == null) return;
+        if (nsWindow == null) {
+            System.err.println("MacWindowStyler: Could not find NSWindow. Ensure Stage has a title.");
+            return;
+        }
 
         Pointer setStyleMaskSel = cocoa.sel_registerName("setStyleMask:");
         Pointer styleMaskSel = cocoa.sel_registerName("styleMask");
@@ -59,19 +73,23 @@ public class MacWindowStyler {
         Pointer setTitleVisibilitySel = cocoa.sel_registerName("setTitleVisibility:");
         Pointer setMovableByWindowBackgroundSel = cocoa.sel_registerName("setMovableByWindowBackground:");
 
+        // 1. Get current style
         long currentStyle = cocoa.objc_msgSend_long(nsWindow, styleMaskSel);
+
+        // 2. Add FullSizeContentView (allows content to flow behind titlebar)
         long newStyle = currentStyle | Cocoa.NSWindowStyleMaskFullSizeContentView;
 
-        cocoa.objc_msgSend(nsWindow, setStyleMaskSel, newStyle);
-        cocoa.objc_msgSend(nsWindow, setTitlebarAppearsTransparentSel, true);
-        cocoa.objc_msgSend(nsWindow, setTitleVisibilitySel, 1L);
-        cocoa.objc_msgSend(nsWindow, setMovableByWindowBackgroundSel, true);
+        // USE TYPED METHOD to ensure the long value is passed correctly
+        cocoa.objc_msgSend_v_long(nsWindow, setStyleMaskSel, newStyle);
+
+        // 3. Make title bar transparent and hide text
+        cocoa.objc_msgSend_v_bool(nsWindow, setTitlebarAppearsTransparentSel, true);
+        cocoa.objc_msgSend_v_bool(nsWindow, setMovableByWindowBackgroundSel, true);
+        cocoa.objc_msgSend_v_long(nsWindow, setTitleVisibilitySel, 1L); // 1 = NSWindowTitleHidden
     }
 
     private static Pointer getWindowPointer(String title) {
-        // --- FIX: Prevent crash if title is null ---
         if (title == null) return null;
-        // -------------------------------------------
 
         Cocoa cocoa = Cocoa.INSTANCE;
         Pointer app = cocoa.objc_msgSend(cocoa.objc_getClass("NSApplication"), cocoa.sel_registerName("sharedApplication"));
