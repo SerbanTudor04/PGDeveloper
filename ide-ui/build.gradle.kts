@@ -18,6 +18,11 @@ dependencies {
     implementation("org.kordamp.ikonli:ikonli-feather-pack:12.3.1")
     implementation("net.java.dev.jna:jna:5.13.0")
     implementation("net.java.dev.jna:jna-platform:5.13.0")
+    // ControlsFX: For the AutoCompletePopup UI
+    implementation("org.controlsfx:controlsfx:11.2.1")
+
+    // JSqlParser: For parsing SQL queries (IntelliSense logic)
+    implementation("com.github.jsqlparser:jsqlparser:4.7")
 }
 
 tasks.test {

@@ -56,39 +56,33 @@ public class MainIdeView {
 
     private boolean isPreloaded = false;
     private String connectionProfileName = "default";
+
     public void setConnectionProfileName(String name) {
         this.connectionProfileName = name;
     }
 
-
     /**
-     * BLOCKING method called by the Splash Screen background thread.
-     * It performs all DB queries and Indexing before the UI is shown.
+     * BLOCKING method called by the Splash Screen.
      */
     public void preload(Consumer<String> statusUpdater) {
         try {
             statusUpdater.accept("Connecting to database...");
             if (!dbManager.testConnection()) throw new RuntimeException("Connection lost");
 
-            // --- 1. SMART INTROSPECTION ---
+            // 1. SMART INTROSPECTION
             statusUpdater.accept("Checking metadata cache...");
-
-            // A. Load disk cache
             DatabaseCache diskCache = workspaceService.loadMetadata(connectionProfileName);
 
-            // B. Perform Introspection (Incremental)
             statusUpdater.accept("Introspecting database structure...");
             DatabaseCache freshCache = metaService.introspect(connectionProfileName, diskCache);
 
-            // C. Save back to disk
             workspaceService.saveMetadata(freshCache);
 
-            // --- 2. INDEXING (Now fast because it reads from memory) ---
+            // 2. INDEXING
             statusUpdater.accept("Indexing search...");
             indexService.clearIndex();
 
             List<LocalIndexService.SearchResult> batch = new ArrayList<>();
-            // metaService.getSchemas() now returns from RAM instantly
             List<String> schemas = metaService.getSchemas();
 
             int count = 0;
@@ -117,7 +111,6 @@ public class MainIdeView {
     }
 
     public Parent getView(Stage stage) {
-
         // 1. SETUP EDITOR AREA
         editorTabPane = new TabPane();
         editorTabPane.getStyleClass().add(Styles.DENSE);
@@ -133,7 +126,6 @@ public class MainIdeView {
         CustomTitleBar titleBar =
                 new CustomTitleBar(stage, "PgDeveloper - " + dbManager.getConnectionInfoOrName());
 
-
         // 2. DOCKING SYSTEM
         dockLayout = new DockLayout(editorTabPane);
         if (getClass().getResource("/dock-layout.css") != null) {
@@ -146,11 +138,11 @@ public class MainIdeView {
 
         // 3. MENU & ROOT
         MenuBar menuBar = createMenuBar();
-
         menuBar.setUseSystemMenuBar(false);
-        // COMBINE TitleBar and MenuBar
+
         VBox topContainer = new VBox(titleBar, menuBar);
         topContainer.setStyle("-fx-background-color: -color-bg-default;");
+
         BorderPane root = new BorderPane();
         if (getClass().getResource("/app-main.css") != null) {
             root.getStylesheets().add(getClass().getResource("/app-main.css").toExternalForm());
@@ -159,34 +151,32 @@ public class MainIdeView {
         root.setCenter(dockLayout);
         root.setBottom(createStatusBar());
 
+        // Events
         sidebar.setOnRefresh(this::runIntrospection);
+        sidebar.setOnItemOpen(this::openObjectTab); // Hook up tab opening
 
         // 4. INITIAL POPULATION
         if (isPreloaded) {
-            // Data is already in memory/H2, just render the sidebar
-            // We must wrap this in runLater to ensure it happens after the scene is attached
             Platform.runLater(() -> {
                 sidebar.populate(metaService);
                 sidebar.setupSearch(indexService);
                 statusLabel.setText("Ready (Preloaded).");
             });
         } else {
-            // Fallback if skipped splash screen
             runIntrospection(null);
         }
 
-        sidebar.setOnItemOpen(this::openObjectTab);
         return root;
     }
 
-    // --- CONSOLE MANAGEMENT ---
     private void addNewConsole() {
         var state = workspaceService.createNewConsole("postgres");
         addConsoleTab(state);
     }
 
     private void addConsoleTab(WorkspaceService.ConsoleState state) {
-        SqlConsoleTab tab = new SqlConsoleTab(state, this::executeQuery);
+        // UPDATED: Pass metaService to SqlConsoleTab for IntelliSense
+        SqlConsoleTab tab = new SqlConsoleTab(state, this::executeQuery, metaService);
         editorTabPane.getTabs().add(tab);
         editorTabPane.getSelectionModel().select(tab);
     }
@@ -217,7 +207,6 @@ public class MainIdeView {
         saveThread.start();
     }
 
-    // --- UI HELPERS ---
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
@@ -247,7 +236,6 @@ public class MainIdeView {
         return bar;
     }
 
-    // --- LOGIC (Execution & Refresh) ---
     private void executeQuery(String sql) {
         if (sql == null || sql.trim().isEmpty()) return;
         statusLabel.setText("Executing...");
@@ -278,15 +266,18 @@ public class MainIdeView {
         }).start();
     }
 
-    // This handles manual refresh button clicks
     private void runIntrospection(Runnable onComplete) {
         if (onComplete == null) {
             progressBar.setVisible(true);
-            statusLabel.setText("Indexing...");
+            statusLabel.setText("Refeshing Metadata...");
         }
 
         new Thread(() -> {
             try {
+                DatabaseCache cached = workspaceService.loadMetadata(connectionProfileName);
+                DatabaseCache fresh = metaService.introspect(connectionProfileName, cached);
+                workspaceService.saveMetadata(fresh);
+
                 indexService.clearIndex();
                 List<LocalIndexService.SearchResult> batch = new ArrayList<>();
                 for (String s : metaService.getSchemas()) {
@@ -303,10 +294,13 @@ public class MainIdeView {
                 });
             } catch (Exception e) {
                 e.printStackTrace();
+                Platform.runLater(() -> {
+                    statusLabel.setText("Refresh Failed.");
+                    if (onComplete != null) onComplete.run();
+                });
             }
         }).start();
     }
-
 
     private void openObjectTab(SidebarItem item) {
         // 1. Check if tab already exists
