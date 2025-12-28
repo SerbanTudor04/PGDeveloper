@@ -69,39 +69,35 @@ public class IdeApp extends Application {
             MainIdeView readyIde = initTask.getValue();
 
             Platform.runLater(() -> {
-                // 1. Create a NEW Stage
                 Stage mainStage = new Stage();
-//                String os = System.getProperty("os.name").toLowerCase();
-//                mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
                 mainStage.initStyle(javafx.stage.StageStyle.DECORATED);
-//                if (os.contains("mac")) {
-//                    // Mac: Native "Unified" look (Native traffic lights, content flows under them)
-//                    mainStage.initStyle(javafx.stage.StageStyle.UNIFIED);
-//                } else {
-//                    // Windows/Linux: Completely custom (No native frame)
-//                    mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
-//                }
 
-                // 2. Create the Scene
+                // --- FIX: Set Title BEFORE styling ---
+                mainStage.setTitle("PgDeveloper");
+                // -------------------------------------
+
                 Scene scene = new Scene(readyIde.getView(mainStage), 1200, 800);
-
-                // 3. SET THE SCENE FIRST <--- This must happen before ResizeHelper
                 mainStage.setScene(scene);
+
+                // Apply Mac styling (Transparency)
                 MacWindowStyler.makeTitleBarTransparent(mainStage);
 
-                // 3. Add ResizeHelper ONLY for Windows (Mac uses native resizing now)
+                // Add resize helper for Windows (Mac uses native now)
                 if (!System.getProperty("os.name").toLowerCase().contains("mac")) {
-                    mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED); // Switch back for Windows
+                    mainStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
                     ResizeHelper.addResizeListener(mainStage);
+                } else {
+                    // For Mac, we still want the resize helper if using DECORATED but hidden titlebar?
+                    // Actually standard decorated windows resize fine.
+                    // If you want standard Mac resizing, do nothing here.
+                    // If you want custom behavior, keep ResizeHelper.
+                    // Assuming standard behavior is fine since we kept StageStyle.DECORATED:
+                    // (No ResizeHelper needed for Mac in this specific config)
                 }
-                // 4. NOW Add the resize helper
-                ResizeHelper.addResizeListener(mainStage);
 
-                // 5. Show
                 mainStage.centerOnScreen();
                 mainStage.show();
 
-                // Close the loading stage
                 primaryStage.close();
             });
         });
