@@ -25,14 +25,14 @@ public class FunctionPlugin implements SidebarPlugin {
             if (funcs.isEmpty()) return null;
 
             FontIcon rootIcon = new FontIcon(Feather.BOX);
-            rootIcon.setIconColor(Color.web("#C678DD"));
+            rootIcon.setStyle("-fx-icon-color: #C678DD;");
 
             SidebarItem rootData = new SidebarItem("Functions", SidebarItem.TYPE_FOLDER, schema, null);
             TreeItem<SidebarItem> root = new TreeItem<>(rootData, rootIcon);
 
             for (String f : funcs) {
                 FontIcon icon = new FontIcon(Feather.PLAY_CIRCLE);
-                icon.setIconColor(Color.web("#C678DD"));
+                rootIcon.setStyle("-fx-icon-color: #C678DD;");
 
                 SidebarItem itemData = new SidebarItem(f, SidebarItem.TYPE_FUNCTION, schema, f);
                 root.getChildren().add(new TreeItem<>(itemData, icon));

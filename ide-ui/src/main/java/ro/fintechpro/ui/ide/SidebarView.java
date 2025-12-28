@@ -60,7 +60,7 @@ public class SidebarView extends VBox {
 
         // Tree
         FontIcon dbIcon = new FontIcon(Feather.DATABASE);
-        dbIcon.setIconColor(Color.web("#E06C75"));
+        dbIcon.setStyle("-fx-icon-color: #E06C75;");
 
         // Root Item
         SidebarItem rootData = new SidebarItem("Database", SidebarItem.TYPE_ROOT, null, null);
@@ -121,7 +121,7 @@ public class SidebarView extends VBox {
 
                 for (String schema : schemas) {
                     FontIcon schemaIcon = new FontIcon(Feather.LAYERS);
-                    schemaIcon.setIconColor(Color.web("#E5C07B"));
+                    schemaIcon.setStyle("-fx-icon-color: #E5C07B;");
 
                     SidebarItem schemaData = new SidebarItem(schema, SidebarItem.TYPE_SCHEMA, schema, null);
                     TreeItem<SidebarItem> schemaItem = new TreeItem<>(schemaData, schemaIcon);
@@ -159,7 +159,22 @@ public class SidebarView extends VBox {
                 searchRoot.setExpanded(true);
 
                 for (var res : results) {
-                    FontIcon icon = new FontIcon(Feather.CIRCLE);
+                    FontIcon icon;
+                    switch (res.type()) {
+                        case "TABLE" -> {
+                            icon = new FontIcon(Feather.LAYOUT);
+                            icon.setStyle("-fx-icon-color: #5263e3;"); // Blue
+                        }
+                        case "FUNCTION" -> {
+                            icon = new FontIcon(Feather.PLAY_CIRCLE);
+                            icon.setStyle("-fx-icon-color: #C678DD;"); // Purple
+                        }
+                        case "PROCEDURE" -> {
+                            icon = new FontIcon(Feather.CPU);
+                            icon.setStyle("-fx-icon-color: #78b5dd;"); // Purple
+                        }
+                        default -> icon = new FontIcon(Feather.CIRCLE);
+                    }
                     // Add logic for icons if needed
                     SidebarItem itemData = new SidebarItem(res.schema() + "." + res.name(), res.type(), res.schema(), res.name());
                     searchRoot.getChildren().add(new TreeItem<>(itemData, icon));

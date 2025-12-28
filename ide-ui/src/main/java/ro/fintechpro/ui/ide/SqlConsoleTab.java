@@ -12,6 +12,7 @@ import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.service.WorkspaceService;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -49,6 +50,14 @@ public class SqlConsoleTab extends Tab {
         codeArea.setParagraphGraphicFactory(org.fxmisc.richtext.LineNumberFactory.get(codeArea));
         SqlSyntaxHighlighter.enable(codeArea);
         codeArea.getStyleClass().add("styled-text-area");
+// Highlighting Logic (Async or Reactive)
+        // Subscription to text changes with a small delay to prevent lag
+        codeArea.multiPlainChanges()
+                .successionEnds(Duration.ofMillis(100))
+                .subscribe(ignore -> codeArea.setStyleSpans(0, SqlSyntaxHighlighter.computeHighlighting(codeArea.getText())));
+
+        // Initial Highlight
+        codeArea.setStyleSpans(0, SqlSyntaxHighlighter.computeHighlighting(codeArea.getText()));
 
         // 2. Toolbar
         Button runBtn = new Button("Run", new FontIcon(Feather.PLAY));

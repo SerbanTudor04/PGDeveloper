@@ -25,14 +25,14 @@ public class TablePlugin implements SidebarPlugin {
             if (tables.isEmpty()) return null;
 
             FontIcon rootIcon = new FontIcon(Feather.GRID);
-            rootIcon.setIconColor(Color.web("#61AFEF"));
+            rootIcon.setStyle("-fx-icon-color: #5263e3;");
 
             SidebarItem rootData = new SidebarItem("Tables (" + tables.size() + ")", SidebarItem.TYPE_FOLDER, schema, null);
             TreeItem<SidebarItem> root = new TreeItem<>(rootData, rootIcon);
 
             for (var t : tables) {
                 FontIcon icon = new FontIcon(Feather.LAYOUT);
-                icon.setIconColor(Color.web("#61AFEF"));
+                rootIcon.setStyle("-fx-icon-color: #5263e3;");
 
                 SidebarItem itemData = new SidebarItem(t.name(), SidebarItem.TYPE_TABLE, schema, t.name());
                 root.getChildren().add(new TreeItem<>(itemData, icon));

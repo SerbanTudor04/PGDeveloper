@@ -25,7 +25,8 @@ public class ProcedurePlugin implements SidebarPlugin {
 
             // Root: CPU Icon (Processing)
             FontIcon rootIcon = new FontIcon(Feather.CPU);
-            rootIcon.setIconColor(Color.web("#C678DD")); // Purple (Logic)
+//            rootIcon.setIconColor(Color.web("#C678DD")); // Purple (Logic)
+            rootIcon.setStyle("-fx-icon-color: #78b5dd;");
 
             SidebarItem rootData = new SidebarItem("Procedures", SidebarItem.TYPE_FOLDER, schema, null);
             TreeItem<SidebarItem> root = new TreeItem<>(rootData, rootIcon);

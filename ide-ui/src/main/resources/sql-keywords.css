@@ -1,44 +1,56 @@
+/* File: pgdeveloper/ide-ui/src/main/resources/sql-keywords.css */
+
 .styled-text-area {
-    -fx-font-family: "Monospaced";
+    -fx-font-family: "Courier New", "Consolas", "Monospaced";
     -fx-font-size: 14px;
-
-    /* LIGHT BACKGROUND */
-    -fx-background-color: #ffffff;
-
-    /* BASE TEXT COLOR (Dark Grey/Black) */
-    -fx-fill: #24292e;
-    -fx-text-fill: #24292e;
-
-    /* Selection Colors */
-    -fx-highlight-fill: #b3d7ff;
-    -fx-highlight-text-fill: black;
+    -fx-background-color: #FFFFFF; /* White Background */
+    -fx-fill: #000000; /* Default Text Black */
 }
 
-/* KEYWORDS (Bold Blue) */
+/* Ensure the content area background is also white */
+.styled-text-area .content {
+    -fx-background-color: #FFFFFF;
+}
+
+/* Selection Color (Standard Blue selection) */
+.styled-text-area .selection {
+    -fx-fill: #FFFFFF;
+    -fx-background-color: #3399FF;
+}
+
 .keyword {
-    -fx-fill: #0033b3;
+    -fx-fill: #0000FF; /* Classic Blue */
     -fx-font-weight: bold;
 }
 
-/* STRINGS (Green) */
-.string {
-    -fx-fill: #067d17;
+.function {
+    -fx-fill: #00008B; /* Dark Blue */
+    -fx-font-weight: bold;
 }
 
-/* COMMENTS (Grey Italic) */
+.string {
+    -fx-fill: #FF0000; /* Red */
+}
+
 .comment {
-    -fx-fill: #8c8c8c;
+    -fx-fill: #008000; /* Green */
     -fx-font-style: italic;
 }
 
-/* PARENTHESES / BRACKETS */
-.paren {
-    -fx-fill: #24292e;
+.number {
+    -fx-fill: #800080; /* Purple */
+}
+
+.semicolon {
+    -fx-fill: #000000; /* Black */
     -fx-font-weight: bold;
 }
 
-/* SEMICOLON */
-.semicolon {
-    -fx-fill: #24292e;
-    -fx-font-weight: bold;
+.paren {
+    -fx-fill: #000000; /* Black */
+}
+
+/* Default text fallback */
+.text {
+    -fx-fill: #000000;
 }
