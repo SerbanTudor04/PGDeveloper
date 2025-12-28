@@ -11,55 +11,50 @@ import java.util.Map;
 
 public class MacWindowStyler {
 
-    // Define the native interface strictly
     public interface Cocoa extends Library {
+        // Function Mapper: Maps any method starting with "send" to the native "objc_msgSend"
         Map<String, Object> OPTIONS = Map.of(
                 Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (library, method) -> {
-                    String name = method.getName();
-                    // Map all our Java helper names to the real native function
-                    if (name.equals("sendInt") || name.equals("sendLong") ||
-                            name.equals("sendVoid") || name.equals("sendVoidBool") ||
-                            name.equals("sendVoidLong") || name.equals("sendPointer")) {
+                    if (method.getName().startsWith("send")) {
                         return "objc_msgSend";
                     }
-                    return name;
+                    return method.getName();
                 }
         );
 
         Cocoa INSTANCE = Native.load("Cocoa", Cocoa.class, OPTIONS);
 
-        // Constants
-        long NSWindowStyleMaskTitled = 1 << 0;
-        long NSWindowStyleMaskResizable = 1 << 3;
-        long NSWindowStyleMaskFullSizeContentView = 1 << 15;
-
-        // Selectors
+        // --- Standard Native Functions ---
         Pointer objc_getClass(String className);
         Pointer sel_registerName(String selectorName);
 
-        // --- EXPLICIT SIGNATURES (No variable arguments to avoid crashes) ---
+        // --- STRICTLY TYPED 'objc_msgSend' MAPPINGS ---
+        // These replace the generic Object... args to prevent crashes on Apple Silicon
 
-        // 1. Get a Pointer (e.g., getting a Window or String)
-        Pointer sendPointer(Pointer receiver, Pointer selector, Object... args);
+        // 1. Get a pointer (e.g., sharedApplication, windows, title)
+        Pointer sendPointer(Pointer self, Pointer op);
 
-        // 2. Get a Long/Int (e.g., styleMask, count)
-        long sendLong(Pointer receiver, Pointer selector);
-        long sendLong(Pointer receiver, Pointer selector, long arg1); // Overload for methods taking 1 arg
+        // 2. Get a pointer with 1 pointer arg (e.g., stringWithUTF8String:)
+        Pointer sendPointer(Pointer self, Pointer op, String arg);
+        Pointer sendPointer(Pointer self, Pointer op, Pointer arg);
 
-        // 3. Void returns (Setters)
-        // Set a long value (setStyleMask:)
-        void sendVoidLong(Pointer receiver, Pointer selector, long arg1);
+        // 3. Get a pointer from an INDEX (CRITICAL FIX for objectAtIndex:)
+        Pointer sendPointerAtIndex(Pointer self, Pointer op, long index);
 
-        // Set a boolean value (setTitlebarAppearsTransparent:)
-        // Note: MacOS BOOL is strictly a byte (signed char). JNA handles boolean -> byte mapping generally,
-        // but explicit mapping is safer if crashes persist.
-        void sendVoidBool(Pointer receiver, Pointer selector, boolean arg1);
+        // 4. Get a long value (e.g., count, styleMask)
+        long sendLong(Pointer self, Pointer op);
+
+        // 5. Void Setters
+        void sendVoidLong(Pointer self, Pointer op, long value);    // setStyleMask:
+        void sendVoidBool(Pointer self, Pointer op, boolean value); // setTitlebarAppearsTransparent:
+        void sendVoidPtr(Pointer self, Pointer op, Pointer value);  // setTitle:
     }
 
     public static void makeTitleBarTransparent(Stage stage) {
         String os = System.getProperty("os.name").toLowerCase();
         if (!os.contains("mac")) return;
 
+        // Ensure we run after the window peer is created
         if (stage.isShowing()) {
             Platform.runLater(() -> applyMacStyle(stage));
         } else {
@@ -71,15 +66,18 @@ public class MacWindowStyler {
         Cocoa cocoa = Cocoa.INSTANCE;
         String searchTitle = stage.getTitle();
 
+        // Safety check
+        if (searchTitle == null) searchTitle = "";
+
         System.out.println("MacWindowStyler: Searching for window '" + searchTitle + "'");
         Pointer nsWindow = getWindowPointer(searchTitle);
 
         if (nsWindow == null) {
-            System.err.println("MacWindowStyler: Window not found via native API.");
+            System.err.println("MacWindowStyler: Window not found.");
             return;
         }
 
-        System.out.println("MacWindowStyler: Window found. Applying style mask...");
+        System.out.println("MacWindowStyler: Window found. Applying styles...");
 
         try {
             Pointer setStyleMask = cocoa.sel_registerName("setStyleMask:");
@@ -89,43 +87,51 @@ public class MacWindowStyler {
             Pointer setMovable = cocoa.sel_registerName("setMovableByWindowBackground:");
             Pointer setTitle = cocoa.sel_registerName("setTitle:");
 
-            // 1. Get Current Mask
+            // 1. Get Current Style
             long currentStyle = cocoa.sendLong(nsWindow, styleMask);
 
-            // 2. Set New Mask (Add FullSizeContentView + Titled + Resizable)
-            long newStyle = currentStyle | Cocoa.NSWindowStyleMaskFullSizeContentView
-                    | Cocoa.NSWindowStyleMaskTitled
-                    | Cocoa.NSWindowStyleMaskResizable;
+            // 2. Construct New Style
+            // NSWindowStyleMaskFullSizeContentView = 1 << 15 (32768)
+            // NSWindowStyleMaskTitled = 1 << 0
+            // NSWindowStyleMaskResizable = 1 << 3
+            long newStyle = currentStyle | (1 << 15) | (1 << 0) | (1 << 3);
 
+            // 3. Apply Style (using strict long setter)
             cocoa.sendVoidLong(nsWindow, setStyleMask, newStyle);
 
-            // 3. Set Properties
+            // 4. Set Attributes (using strict boolean setters)
             cocoa.sendVoidBool(nsWindow, setTransparent, true);
             cocoa.sendVoidBool(nsWindow, setMovable, true);
-            cocoa.sendVoidLong(nsWindow, setTitleVis, 1L); // 1 = NSWindowTitleHidden
+            cocoa.sendVoidLong(nsWindow, setTitleVis, 1L); // Hide Title Text
 
-            // 4. Clear Title String
+            // 5. Clear Native Title String
             Pointer emptyString = cocoa.sendPointer(
                     cocoa.objc_getClass("NSString"),
                     cocoa.sel_registerName("stringWithUTF8String:"),
                     ""
             );
-            cocoa.sendPointer(nsWindow, setTitle, emptyString);
+            cocoa.sendVoidPtr(nsWindow, setTitle, emptyString);
 
             System.out.println("MacWindowStyler: Success.");
 
         } catch (Exception e) {
-            System.err.println("MacWindowStyler: Error applying styles - " + e.getMessage());
             e.printStackTrace();
         }
     }
 
     private static Pointer getWindowPointer(String title) {
-        if (title == null) return null;
         Cocoa cocoa = Cocoa.INSTANCE;
 
-        Pointer app = cocoa.sendPointer(cocoa.objc_getClass("NSApplication"), cocoa.sel_registerName("sharedApplication"));
+        // Get Shared Application
+        Pointer app = cocoa.sendPointer(
+                cocoa.objc_getClass("NSApplication"),
+                cocoa.sel_registerName("sharedApplication")
+        );
+
+        // Get Windows Array
         Pointer windows = cocoa.sendPointer(app, cocoa.sel_registerName("windows"));
+
+        // Get Count (Strict Long)
         long count = cocoa.sendLong(windows, cocoa.sel_registerName("count"));
 
         Pointer objectAtIndex = cocoa.sel_registerName("objectAtIndex:");
@@ -133,16 +139,19 @@ public class MacWindowStyler {
         Pointer utf8String = cocoa.sel_registerName("UTF8String");
 
         for (long i = 0; i < count; i++) {
-            // Use 'sendPointer' with arguments for array access.
-            // We cast 'i' to Long explicitly in the args to match native expectation if using varargs,
-            // but strict mapping is better:
-            Pointer win = cocoa.sendPointer(windows, objectAtIndex, i);
+            // --- CRITICAL FIX IS HERE ---
+            // Use the specific method signature that takes a 'long index'.
+            // This prevents JNA from passing garbage data to the native side.
+            Pointer win = cocoa.sendPointerAtIndex(windows, objectAtIndex, i);
+            // ----------------------------
 
             Pointer nsTitle = cocoa.sendPointer(win, titleSel);
             if (nsTitle != null) {
-                Pointer utf8Title = cocoa.sendPointer(nsTitle, utf8String);
-                if (utf8Title != null) {
-                    String winTitle = utf8Title.getString(0);
+                // UTF8String returns a (char*), which is a Pointer
+                Pointer utf8TitlePtr = cocoa.sendPointer(nsTitle, utf8String);
+
+                if (utf8TitlePtr != null) {
+                    String winTitle = utf8TitlePtr.getString(0);
                     if (title.equals(winTitle)) {
                         return win;
                     }
