@@ -1,8 +1,11 @@
 package ro.fintechpro.core.spi;
 
+import javafx.scene.control.Tab;
 import javafx.scene.control.TreeItem;
+import ro.fintechpro.core.model.SidebarItem;
 import ro.fintechpro.core.service.LocalIndexService.SearchResult;
 import ro.fintechpro.core.service.MetadataService;
+import ro.fintechpro.core.service.QueryExecutor;
 
 import java.util.List;
 
@@ -20,4 +23,8 @@ public interface SidebarPlugin {
      * Returns a list of items to add to the global Search Index (H2).
      */
     List<SearchResult> getIndexItems(String schema, MetadataService metaService);
+
+    default Tab createTab(SidebarItem item, MetadataService metaService, QueryExecutor queryExecutor) {
+        return null; // Return null if this plugin doesn't handle the item
+    }
 }

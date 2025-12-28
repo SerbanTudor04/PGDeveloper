@@ -11,16 +11,19 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color; // Import Color
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
+import ro.fintechpro.core.model.SidebarItem;
 import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.spi.SidebarPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class SidebarView extends VBox {
 
-    private final TreeView<String> treeView;
+    private final TreeView<SidebarItem> treeView;
+    private Consumer<SidebarItem> onItemOpen;
     private final TreeItem<String> rootItem;
     private final TextField searchField;
     private final List<SidebarPlugin> plugins;
@@ -61,18 +64,29 @@ public class SidebarView extends VBox {
         // Root Icon (Database)
         FontIcon dbIcon = new FontIcon(Feather.DATABASE);
         dbIcon.setIconColor(Color.web("#E06C75")); // Red/Pink
-        rootItem = new TreeItem<>("Database", dbIcon);
-        rootItem.setExpanded(true);
+        SidebarItem rootData = new SidebarItem("Database", SidebarItem.TYPE_ROOT, null, null);
+        TreeItem<SidebarItem> rootItem = new TreeItem<>(rootData);
 
         treeView = new TreeView<>(rootItem);
         treeView.setShowRoot(true);
+
+        // Handle Double Click
+        treeView.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) {
+                TreeItem<SidebarItem> selected = treeView.getSelectionModel().getSelectedItem();
+                if (selected != null && selected.getValue() != null && onItemOpen != null) {
+                    onItemOpen.accept(selected.getValue());
+                }
+            }
+        });
+
         treeView.getStyleClass().add(Styles.DENSE);
         VBox.setVgrow(treeView, Priority.ALWAYS);
 
         // Simple Cell Factory
         treeView.setCellFactory(tv -> new TreeCell<>() {
             @Override
-            protected void updateItem(String item, boolean empty) {
+            protected void updateItem(SidebarItem item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
@@ -123,6 +137,10 @@ public class SidebarView extends VBox {
                 e.printStackTrace();
             }
         });
+    }
+
+    public void setOnItemOpen(Consumer<SidebarItem> listener) {
+        this.onItemOpen = listener;
     }
 
     public void setupSearch(LocalIndexService indexService) {

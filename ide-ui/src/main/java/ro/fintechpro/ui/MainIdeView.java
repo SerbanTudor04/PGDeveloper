@@ -12,6 +12,7 @@ import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.db.DataSourceManager;
 import ro.fintechpro.core.model.DatabaseCache;
+import ro.fintechpro.core.model.SidebarItem;
 import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
@@ -173,6 +174,8 @@ public class MainIdeView {
             // Fallback if skipped splash screen
             runIntrospection(null);
         }
+
+        sidebar.setOnItemOpen(this::openObjectTab);
         return root;
     }
 
@@ -302,5 +305,28 @@ public class MainIdeView {
                 e.printStackTrace();
             }
         }).start();
+    }
+
+
+    private void openObjectTab(SidebarItem item) {
+        // 1. Check if tab already exists
+        String tabId = item.type() + ":" + item.schema() + "." + item.name();
+        for (Tab t : editorTabPane.getTabs()) {
+            if (tabId.equals(t.getUserData())) {
+                editorTabPane.getSelectionModel().select(t);
+                return;
+            }
+        }
+
+        // 2. Ask plugins to create the tab
+        for (SidebarPlugin plugin : plugins) {
+            Tab tab = plugin.createTab(item, metaService, queryExecutor);
+            if (tab != null) {
+                tab.setUserData(tabId); // Tag it for uniqueness
+                editorTabPane.getTabs().add(tab);
+                editorTabPane.getSelectionModel().select(tab);
+                return;
+            }
+        }
     }
 }

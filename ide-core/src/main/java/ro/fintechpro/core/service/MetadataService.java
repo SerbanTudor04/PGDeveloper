@@ -6,6 +6,7 @@ import ro.fintechpro.core.model.DatabaseCache.SchemaCache;
 import ro.fintechpro.core.model.DatabaseCache.TableCache;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -154,4 +155,64 @@ public class MetadataService {
 
     // Legacy support record
     public record DbObject(String name, String type) {}
+
+
+    public record ColumnInfo(String name, String type, int size, boolean isNullable) {}
+    public record IndexInfo(String name, boolean isUnique) {}
+
+    public List<ColumnInfo> getColumns(String schema, String table) throws Exception {
+        List<ColumnInfo> columns = new ArrayList<>();
+        try (Connection conn = dbManager.getConnection();
+             ResultSet rs = conn.getMetaData().getColumns(null, schema, table, null)) {
+            while (rs.next()) {
+                columns.add(new ColumnInfo(
+                        rs.getString("COLUMN_NAME"),
+                        rs.getString("TYPE_NAME"),
+                        rs.getInt("COLUMN_SIZE"),
+                        "YES".equals(rs.getString("IS_NULLABLE"))
+                ));
+            }
+        }
+        return columns;
+    }
+
+    public List<IndexInfo> getIndexes(String schema, String table) throws Exception {
+        List<IndexInfo> indexes = new ArrayList<>();
+        try (Connection conn = dbManager.getConnection();
+             // boolean unique, boolean approximate
+             ResultSet rs = conn.getMetaData().getIndexInfo(null, schema, table, false, false)) {
+            while (rs.next()) {
+                String idxName = rs.getString("INDEX_NAME");
+                if (idxName != null) { // Some rows are stats
+                    boolean unique = !rs.getBoolean("NON_UNIQUE");
+                    // Simple dedup logic or list could be used
+                    if (indexes.stream().noneMatch(i -> i.name().equals(idxName))) {
+                        indexes.add(new IndexInfo(idxName, unique));
+                    }
+                }
+            }
+        }
+        return indexes;
+    }
+
+    // --- NEW: Routine Details ---
+
+    public String getRoutineSource(String schema, String name) throws Exception {
+        // Postgres specific way to get CREATE OR REPLACE FUNCTION ...
+        // We use string formatting for schema.name, but binding for the OID lookup would be safer
+        // if we had the OID. For now, we rely on regproc casting.
+        String sql = "SELECT pg_get_functiondef((? || '.' || ?)::regproc)";
+
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, schema);
+            stmt.setString(2, name);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString(1);
+                }
+            }
+        }
+        return "-- Source not found or not supported for this object type.";
+    }
 }
