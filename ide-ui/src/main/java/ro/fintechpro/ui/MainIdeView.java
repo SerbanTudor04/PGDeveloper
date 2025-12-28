@@ -11,6 +11,7 @@ import javafx.stage.Stage;
 import org.kordamp.ikonli.feather.Feather;
 import org.kordamp.ikonli.javafx.FontIcon;
 import ro.fintechpro.core.db.DataSourceManager;
+import ro.fintechpro.core.model.DatabaseCache;
 import ro.fintechpro.core.service.LocalIndexService;
 import ro.fintechpro.core.service.MetadataService;
 import ro.fintechpro.core.service.QueryExecutor;
@@ -47,8 +48,12 @@ public class MainIdeView {
     private final Label statusLabel = new Label("Ready");
     private DockLayout dockLayout;
 
-    // State to track if we preloaded data during splash screen
     private boolean isPreloaded = false;
+    private String connectionProfileName = "default";
+    public void setConnectionProfileName(String name) {
+        this.connectionProfileName = name;
+    }
+
 
     /**
      * BLOCKING method called by the Splash Screen background thread.
@@ -57,14 +62,27 @@ public class MainIdeView {
     public void preload(Consumer<String> statusUpdater) {
         try {
             statusUpdater.accept("Connecting to database...");
-            // Ensure connection is valid (optional, already connected in manager)
             if (!dbManager.testConnection()) throw new RuntimeException("Connection lost");
 
-            // 1. Introspection & Indexing
-            statusUpdater.accept("Indexing database structure...");
+            // --- 1. SMART INTROSPECTION ---
+            statusUpdater.accept("Checking metadata cache...");
+
+            // A. Load disk cache
+            DatabaseCache diskCache = workspaceService.loadMetadata(connectionProfileName);
+
+            // B. Perform Introspection (Incremental)
+            statusUpdater.accept("Introspecting database structure...");
+            DatabaseCache freshCache = metaService.introspect(connectionProfileName, diskCache);
+
+            // C. Save back to disk
+            workspaceService.saveMetadata(freshCache);
+
+            // --- 2. INDEXING (Now fast because it reads from memory) ---
+            statusUpdater.accept("Indexing search...");
             indexService.clearIndex();
 
             List<LocalIndexService.SearchResult> batch = new ArrayList<>();
+            // metaService.getSchemas() now returns from RAM instantly
             List<String> schemas = metaService.getSchemas();
 
             int count = 0;
@@ -79,9 +97,8 @@ public class MainIdeView {
             statusUpdater.accept("Finalizing index (" + batch.size() + " objects)...");
             indexService.indexItems(batch);
 
-            // 2. Load Workspace (Tabs)
+            // 3. Load Workspace
             statusUpdater.accept("Restoring workspace...");
-            // We just ensure the service is ready; actual UI tabs must be created on FX thread
             workspaceService.loadState();
 
             isPreloaded = true;
@@ -151,7 +168,6 @@ public class MainIdeView {
             // Fallback if skipped splash screen
             runIntrospection(null);
         }
-
         return root;
     }
 
